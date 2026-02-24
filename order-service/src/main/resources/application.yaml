@@ -1,5 +1,7 @@
 spring:
   application:
     name: order-service
+  profiles:
+    active: docker
 server:
   port: 8083

@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: order-service
+  datasource:
+    url: jdbc:postgresql://postgres:5432/order_db
+    password: password
+    username: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: guest
+    password: guest
+server:
+  port: 8083
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://discovery-service:8761/eureka/
+
