@@ -1,6 +1,7 @@
 package com.amalitech.fooddelivery.orderservice.entity;
 
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -26,6 +27,7 @@ import java.util.List;
 @Table(name = "orders")
 @Getter
 @Setter
+@Builder
 public class OrderEntity {
 
   @Id
@@ -51,14 +53,14 @@ public class OrderEntity {
   private LocalDateTime updatedAt;
   private LocalDateTime estimatedDeliveryTime;
 
-  // ---- CROSS-DOMAIN RELATIONSHIPS (monolith anti-pattern) ----
+  @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<OrderItemEntity> items = new ArrayList<>();
 
+  // ---- CROSS-DOMAIN RELATIONSHIPS (monolith anti-pattern) ----
 
   private Long customerId;
 
   private Long restaurantId;
-
-  private List<Long> itemsId = new ArrayList<>();
 
   private Long deliveryId;
 

@@ -47,6 +47,7 @@ public class DeliveryEntity {
   @Column(nullable = false, updatable = false)
   private LocalDateTime createdAt;
 
+  // External Dependecy
   private Long orderId;
 
   @PrePersist

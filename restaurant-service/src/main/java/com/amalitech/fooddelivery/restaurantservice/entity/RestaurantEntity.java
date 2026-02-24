@@ -1,8 +1,7 @@
 package com.amalitech.fooddelivery.restaurantservice.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -21,6 +20,9 @@ import java.util.List;
 @Table(name = "restaurants")
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class RestaurantEntity {
 
   @Id
@@ -51,8 +53,7 @@ public class RestaurantEntity {
   @OneToMany(mappedBy = "restaurant", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<MenuItemEntity> menuItems = new ArrayList<>();
 
-  // ---- CROSS-DOMAIN RELATIONSHIPS (monolith anti-pattern) ----
-
+  // ---- CROSS-DOMAIN RELATIONSHIPS (monolith anti-pattern) ---- (Customer is owner of restaurant, but we only store ownerId here)
   private Long ownerId;
 
   private List<Long> orderIds = new ArrayList<>();

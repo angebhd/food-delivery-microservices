@@ -1,6 +1,7 @@
 package com.amalitech.fooddelivery.customerservice.entity;
 
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -20,6 +21,7 @@ import java.util.List;
 @Table(name = "customers")
 @Getter
 @Setter
+@Builder
 public class CustomerEntity {
 
   @Id
@@ -53,6 +55,7 @@ public class CustomerEntity {
 
   private LocalDateTime updatedAt;
 
+  // External dependecy on Order Service - store orderIds instead of @OneToMany
   private List<Long> orderIds = new ArrayList<>();
 
   @PrePersist
