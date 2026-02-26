@@ -14,7 +14,7 @@ public interface CustomerInterface {
   @PostMapping("/api/customers/create")
   CustomerDTO register(@Valid @RequestBody RegisterRequest request);
 
-  @GetMapping("api/customers/{username}")
+  @GetMapping("api/customers/username/{username}")
   CustomerDTO getByUsername(@PathVariable String username);
 
 

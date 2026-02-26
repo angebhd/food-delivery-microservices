@@ -3,7 +3,9 @@ package com.amalitech.fooddelivery.apigateway.security;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -13,8 +15,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.*;
 
+@Slf4j
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -32,6 +35,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
 
+
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
 
@@ -47,6 +51,41 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new WebAuthenticationDetailsSource().buildDetails(request)
                 );
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                log.warn("JwtAuthenticationFilter: Authenticated user: {}", username);
+
+
+                HttpServletRequest wrappedRequest = new HttpServletRequestWrapper(request) {
+                    private final Map<String, String> customHeaders = new HashMap<>();
+                    {
+                        customHeaders.put("X-Auth-User", username);
+                        customHeaders.put("X-Auth-Role", "ROLE_USER");
+                    }
+
+                    @Override
+                    public String getHeader(String name) {
+                        if (customHeaders.containsKey(name)) {
+                            return customHeaders.get(name);
+                        }
+                        return super.getHeader(name);
+                    }
+
+                    @Override
+                    public Enumeration<String> getHeaders(String name) {
+                        if (customHeaders.containsKey(name)) {
+                            return Collections.enumeration(Collections.singletonList(customHeaders.get(name)));
+                        }
+                        return super.getHeaders(name);
+                    }
+
+                    @Override
+                    public Enumeration<String> getHeaderNames() {
+                        Set<String> headerNames = new HashSet<>(Collections.list(super.getHeaderNames()));
+                        headerNames.addAll(customHeaders.keySet());
+                        return Collections.enumeration(headerNames);
+                    }
+                };
+                filterChain.doFilter(wrappedRequest, response);
+                return;
             }
         }
 

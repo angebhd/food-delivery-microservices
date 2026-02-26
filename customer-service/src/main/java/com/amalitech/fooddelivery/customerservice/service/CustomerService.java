@@ -1,7 +1,6 @@
 package com.amalitech.fooddelivery.customerservice.service;
 
 
-import com.amalitech.fooddelivery.customerservice.dto.AuthResponse;
 import com.amalitech.fooddelivery.customerservice.dto.CustomerResponse;
 import com.amalitech.fooddelivery.customerservice.dto.RegisterRequest;
 import com.amalitech.fooddelivery.customerservice.entity.CustomerEntity;
@@ -15,12 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private static final String CUSTOMER = "Customer";
+    private static final String USERNAME = "username";
 
 
-    public CustomerService(CustomerRepository customerRepository
-    ) {
+    public CustomerService(CustomerRepository customerRepository ) {
         this.customerRepository = customerRepository;
-
     }
 
     @Transactional
@@ -46,29 +45,26 @@ public class CustomerService {
 
         return customerRepository.save(customer);
 
-
-        // Null token since API Gateway handles authentication and token generation
-//        return new AuthResponse(null, customer.getId(), customer.getUsername(), customer.getRole().name());
     }
 
     @Transactional(readOnly = true)
     public CustomerResponse getProfile(String username) {
         CustomerEntity customer = customerRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer", "username", username));
+                .orElseThrow(() -> new ResourceNotFoundException(CUSTOMER, USERNAME, username));
         return CustomerResponse.fromEntity(customer);
     }
 
     @Transactional(readOnly = true)
     public CustomerResponse getById(Long id) {
         CustomerEntity customer = customerRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", id));
+                .orElseThrow(() -> new ResourceNotFoundException(CUSTOMER, "id", id));
         return CustomerResponse.fromEntity(customer);
     }
 
     @Transactional
     public CustomerResponse updateProfile(String username, RegisterRequest request) {
         CustomerEntity customer = customerRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer", "username", username));
+                .orElseThrow(() -> new ResourceNotFoundException(CUSTOMER, USERNAME, username));
 
         if (request.getFirstName() != null) customer.setFirstName(request.getFirstName());
         if (request.getLastName() != null) customer.setLastName(request.getLastName());
@@ -79,9 +75,8 @@ public class CustomerService {
         return CustomerResponse.fromEntity(customerRepository.save(customer));
     }
 
-    // Used internally by other services — MONOLITH COUPLING
     public CustomerEntity findEntityByUsername(String username) {
         return customerRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer", "username", username));
+                .orElseThrow(() -> new ResourceNotFoundException(CUSTOMER, USERNAME, username));
     }
 }
