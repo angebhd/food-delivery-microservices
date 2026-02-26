@@ -1,7 +1,6 @@
 package com.amalitech.fooddelivery.deliveryservice.dto;
 
 import com.amalitech.fooddelivery.deliveryservice.entity.DeliveryEntity;
-import com.fooddelivery.model.Delivery;
 import lombok.Data;
 
 import java.time.LocalDateTime;

@@ -1,6 +1,5 @@
 package com.amalitech.fooddelivery.orderservice.dto;
 
-import com.fooddelivery.dto.OrderItemRequest;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;

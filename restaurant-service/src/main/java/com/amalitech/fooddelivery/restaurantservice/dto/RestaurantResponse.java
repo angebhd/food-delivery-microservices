@@ -1,7 +1,6 @@
 package com.amalitech.fooddelivery.restaurantservice.dto;
 
 import com.amalitech.fooddelivery.restaurantservice.entity.RestaurantEntity;
-import com.fooddelivery.model.Restaurant;
 import lombok.Data;
 
 @Data

@@ -1,9 +1,11 @@
 package com.amalitech.fooddelivery.customerservice.service;
 
 
+import com.amalitech.fooddelivery.customerservice.dto.AuthResponse;
 import com.amalitech.fooddelivery.customerservice.dto.CustomerResponse;
 import com.amalitech.fooddelivery.customerservice.dto.RegisterRequest;
 import com.amalitech.fooddelivery.customerservice.entity.CustomerEntity;
+import com.amalitech.fooddelivery.customerservice.exception.DuplicateResourceException;
 import com.amalitech.fooddelivery.customerservice.exception.ResourceNotFoundException;
 import com.amalitech.fooddelivery.customerservice.repository.CustomerRepository;
 import org.springframework.stereotype.Service;
@@ -13,57 +15,41 @@ import org.springframework.transaction.annotation.Transactional;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
-//    private final PasswordEncoder passwordEncoder;
-//    private final JwtUtil jwtUtil;
+
 
     public CustomerService(CustomerRepository customerRepository
-//                           ,PasswordEncoder passwordEncoder,
-//                           JwtUtil jwtUtil
     ) {
         this.customerRepository = customerRepository;
-//        this.passwordEncoder = passwordEncoder;
-//        this.jwtUtil = jwtUtil;
+
     }
 
-    // TODO: Implemennt Interservice sommunication
-//    @Transactional
-//    public AuthResponse register(RegisterRequest request) {
-//        if (customerRepository.existsByUsername(request.getUsername())) {
-//            throw new DuplicateResourceException("Username already taken");
-//        }
-//        if (customerRepository.existsByEmail(request.getEmail())) {
-//            throw new DuplicateResourceException("Email already registered");
-//        }
-//
-//        CustomerEntity customer = CustomerEntity.builder()
-//                .username(request.getUsername())
-//                .email(request.getEmail())
-//                .password(passwordEncoder.encode(request.getPassword()))
-//                .firstName(request.getFirstName())
-//                .lastName(request.getLastName())
-//                .phone(request.getPhone())
-//                .deliveryAddress(request.getDeliveryAddress())
-//                .city(request.getCity())
-//                .role(Customer.Role.CUSTOMER)
-//                .build();
-//
-//        customerRepository.save(customer);
-//
-//        String token = jwtUtil.generateToken(customer.getUsername(), customer.getRole().name());
-//        return new AuthResponse(token, customer.getId(), customer.getUsername(), customer.getRole().name());
-//    }
-//
-//    public AuthResponse login(AuthRequest request) {
-//        Customer customer = customerRepository.findByUsername(request.getUsername())
-//                .orElseThrow(() -> new ResourceNotFoundException("Customer", "username", request.getUsername()));
-//
-//        if (!passwordEncoder.matches(request.getPassword(), customer.getPassword())) {
-//            throw new UnauthorizedException("Invalid credentials");
-//        }
-//
-//        String token = jwtUtil.generateToken(customer.getUsername(), customer.getRole().name());
-//        return new AuthResponse(token, customer.getId(), customer.getUsername(), customer.getRole().name());
-//    }
+    @Transactional
+    public CustomerEntity create(RegisterRequest request) {
+        if (customerRepository.existsByUsername(request.getUsername())) {
+            throw new DuplicateResourceException("Username already taken");
+        }
+        if (customerRepository.existsByEmail(request.getEmail())) {
+            throw new DuplicateResourceException("Email already registered");
+        }
+
+        CustomerEntity customer = CustomerEntity.builder()
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .password(request.getPassword()) // Already encoded in API Gateway
+                .firstName(request.getFirstName())
+                .lastName(request.getLastName())
+                .phone(request.getPhone())
+                .deliveryAddress(request.getDeliveryAddress())
+                .city(request.getCity())
+                .role(CustomerEntity.Role.CUSTOMER)
+                .build();
+
+        return customerRepository.save(customer);
+
+
+        // Null token since API Gateway handles authentication and token generation
+//        return new AuthResponse(null, customer.getId(), customer.getUsername(), customer.getRole().name());
+    }
 
     @Transactional(readOnly = true)
     public CustomerResponse getProfile(String username) {
