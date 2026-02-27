@@ -1,8 +1,7 @@
 package com.amalitech.fooddelivery.deliveryservice.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -21,9 +20,11 @@ import java.time.LocalDateTime;
  *  - Delivery Service publishes DeliveryStatusUpdatedEvent
  */
 @Entity
-@Table(name = "customers")
+@Table(name = "deliveries")
 @Getter
 @Setter
+@Builder
+@AllArgsConstructor @NoArgsConstructor
 public class DeliveryEntity {
 
   @Id

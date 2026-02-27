@@ -48,4 +48,9 @@ public class CustomerController {
             Authentication auth, @RequestBody RegisterRequest request) {
         return ResponseEntity.ok(customerService.updateProfile(auth.getName(), request));
     }
+
+    @PutMapping("/make-restaurant-owner")
+    public ResponseEntity<CustomerResponse> makeRestaurantOwner(Authentication auth) {
+        return ResponseEntity.ok(customerService.updateProfile(auth.getName()));
+    }
 }

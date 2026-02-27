@@ -1,53 +1,50 @@
 package com.amalitech.fooddelivery.restaurantservice.service;
 
-import com.amalitech.fooddelivery.restaurantservice.dto.MenuItemRequest;
-import com.amalitech.fooddelivery.restaurantservice.dto.MenuItemResponse;
-import com.amalitech.fooddelivery.restaurantservice.dto.RestaurantRequest;
-import com.amalitech.fooddelivery.restaurantservice.dto.RestaurantResponse;
+import com.amalitech.fooddelivery.restaurantservice.client.CustomerInterface;
+import com.amalitech.fooddelivery.restaurantservice.dto.*;
 import com.amalitech.fooddelivery.restaurantservice.entity.MenuItemEntity;
 import com.amalitech.fooddelivery.restaurantservice.entity.RestaurantEntity;
 import com.amalitech.fooddelivery.restaurantservice.exception.ResourceNotFoundException;
+import com.amalitech.fooddelivery.restaurantservice.exception.UnauthorizedException;
 import com.amalitech.fooddelivery.restaurantservice.repository.MenuItemRepository;
 import com.amalitech.fooddelivery.restaurantservice.repository.RestaurantRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 /**
- * MONOLITH COUPLING: This service directly accesses CustomerRepository
- * to validate restaurant ownership. In microservices, it should call
- * Customer Service via Feign to validate the owner.
+ * Restaurant Service business logic.
+ *
+ * Cross-domain communication:
+ *  - Validates restaurant ownership via Feign call to Customer Service
+ *  - Enriches RestaurantResponse with owner name via Feign call to Customer Service
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class RestaurantService {
 
     private final RestaurantRepository restaurantRepository;
     private final MenuItemRepository menuItemRepository;
-//    private final CustomerRepository customerRepository; // CROSS-DOMAIN DEPENDENCY //TODO
+    private final CustomerInterface customerService;
 
-    public RestaurantService(RestaurantRepository restaurantRepository,
-                             MenuItemRepository menuItemRepository
-//            ,
-//                             CustomerRepository customerRepository
-    ) {
-        this.restaurantRepository = restaurantRepository;
-        this.menuItemRepository = menuItemRepository;
-//        this.customerRepository = customerRepository;
-    }
 
     @Transactional
     public RestaurantResponse createRestaurant(String ownerUsername, RestaurantRequest request) {
-        // TODO
-//        // MONOLITH: directly accessing Customer entity from Restaurant domain
-//        Customer owner = customerRepository.findByUsername(ownerUsername)
-//                .orElseThrow(() -> new ResourceNotFoundException("Customer", "username", ownerUsername));
-//
-//        // Promote to RESTAURANT_OWNER if needed
-//        if (owner.getRole() == Customer.Role.CUSTOMER) {
-//            owner.setRole(Customer.Role.RESTAURANT_OWNER);
-//            customerRepository.save(owner);
-//        }
+
+        CustomerResponse owner = customerService.findEntityByUsername(ownerUsername);
+
+        // Promote to RESTAURANT_OWNER if needed
+        if (owner.getRole().equalsIgnoreCase("CUSTOMER")) {
+            log.warn("Making user {} a restaurant owner", ownerUsername);
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            customerService.makeRestaurantOwner(auth);
+        }
 
         RestaurantEntity restaurant = RestaurantEntity.builder()
                 .name(request.getName())
@@ -57,35 +54,35 @@ public class RestaurantService {
                 .city(request.getCity())
                 .phone(request.getPhone())
                 .estimatedDeliveryMinutes(request.getEstimatedDeliveryMinutes())
-//                .owner(owner) // MONOLITH: direct entity reference across domains // TODO
+                .ownerId(owner.getId())
                 .build();
 
-        return RestaurantResponse.fromEntity(restaurantRepository.save(restaurant));
+        return enrichWithOwnerName(RestaurantResponse.fromEntity(restaurantRepository.save(restaurant)));
     }
 
     @Transactional(readOnly = true)
     public RestaurantResponse getById(Long id) {
         RestaurantEntity restaurant = restaurantRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant", "id", id));
-        return RestaurantResponse.fromEntity(restaurant);
+        return enrichWithOwnerName(RestaurantResponse.fromEntity(restaurant));
     }
 
     @Transactional(readOnly = true)
     public List<RestaurantResponse> searchByCity(String city) {
         return restaurantRepository.findByCityIgnoreCaseAndActiveTrue(city)
-                .stream().map(RestaurantResponse::fromEntity).toList();
+                .stream().map(RestaurantResponse::fromEntity).map(this::enrichWithOwnerName).toList();
     }
 
     @Transactional(readOnly = true)
     public List<RestaurantResponse> searchByCuisine(String cuisineType) {
         return restaurantRepository.findByCuisineTypeIgnoreCaseAndActiveTrue(cuisineType)
-                .stream().map(RestaurantResponse::fromEntity).toList();
+                .stream().map(RestaurantResponse::fromEntity).map(this::enrichWithOwnerName).toList();
     }
 
     @Transactional(readOnly = true)
     public List<RestaurantResponse> getAllActive() {
         return restaurantRepository.findByActiveTrue()
-                .stream().map(RestaurantResponse::fromEntity).toList();
+                .stream().map(RestaurantResponse::fromEntity).map(this::enrichWithOwnerName).toList();
     }
 
     // ---- Menu Item management ----
@@ -95,10 +92,11 @@ public class RestaurantService {
         RestaurantEntity restaurant = restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant", "id", restaurantId));
 
-//        // MONOLITH: cross-domain ownership check via entity traversal
-//        if (!restaurant.getOwner().getUsername().equals(ownerUsername)) {
-//            throw new UnauthorizedException("You don't own this restaurant");
-//        }
+        CustomerResponse owner = customerService.findEntityByUsername(ownerUsername);
+
+        if (!restaurant.getOwnerId().equals(owner.getId())) {
+            throw new UnauthorizedException("You don't own this restaurant");
+        }
 
         MenuItemEntity item = MenuItemEntity.builder()
                 .name(request.getName())
@@ -113,6 +111,11 @@ public class RestaurantService {
     }
 
     @Transactional(readOnly = true)
+    public MenuItemResponse getMenuItemById(Long menuId) {
+        return MenuItemResponse.fromEntity(menuItemRepository.findById(menuId).orElseThrow(() -> new ResourceNotFoundException("MenuItem", "id", menuId)));
+    }
+
+    @Transactional(readOnly = true)
     public List<MenuItemResponse> getMenu(Long restaurantId) {
         return menuItemRepository.findByRestaurantIdAndAvailableTrue(restaurantId)
                 .stream().map(MenuItemResponse::fromEntity).toList();
@@ -122,11 +125,11 @@ public class RestaurantService {
     public MenuItemResponse updateMenuItem(Long itemId, String ownerUsername, MenuItemRequest request) {
         MenuItemEntity item = menuItemRepository.findById(itemId)
                 .orElseThrow(() -> new ResourceNotFoundException("MenuItem", "id", itemId));
+        CustomerResponse owner = customerService.findEntityByUsername(ownerUsername);
 
-//        // MONOLITH: cross-domain ownership check
-//        if (!item.getRestaurant().getOwner().getUsername().equals(ownerUsername)) {
-//            throw new UnauthorizedException("You don't own this restaurant");
-//        }
+        if (!item.getRestaurant().getOwnerId().equals(owner.getId())) {
+            throw new UnauthorizedException("You don't own this restaurant");
+        }
 
         if (request.getName() != null) item.setName(request.getName());
         if (request.getDescription() != null) item.setDescription(request.getDescription());
@@ -141,10 +144,11 @@ public class RestaurantService {
         MenuItemEntity item = menuItemRepository.findById(itemId)
                 .orElseThrow(() -> new ResourceNotFoundException("MenuItem", "id", itemId));
 
-        // TODO
-//        if (!item.getRestaurant().getOwner().getUsername().equals(ownerUsername)) {
-//            throw new UnauthorizedException("You don't own this restaurant");
-//        }
+        CustomerResponse owner = customerService.findEntityByUsername(ownerUsername);
+
+        if (!item.getRestaurant().getOwnerId().equals(owner.getId())) {
+            throw new UnauthorizedException("You don't own this restaurant");
+        }
 
         item.setAvailable(!item.isAvailable());
         menuItemRepository.save(item);
@@ -159,5 +163,24 @@ public class RestaurantService {
     public MenuItemEntity findMenuItemById(Long id) {
         return menuItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("MenuItem", "id", id));
+    }
+
+    /**
+     * Enriches a RestaurantResponse with the owner's name fetched from the Customer Service.
+     * Uses a try-catch so that a Customer Service outage does not break restaurant retrieval.
+     */
+    private RestaurantResponse enrichWithOwnerName(RestaurantResponse response) {
+        if (response.getOwnerId() == null) {
+            return response;
+        }
+        try {
+            CustomerResponse owner = customerService.getById(response.getOwnerId());
+            if (owner != null) {
+                response.setOwnerName(owner.getFirstName() + " " + owner.getLastName());
+            }
+        } catch (Exception e) {
+            log.warn("Could not fetch owner info for restaurant {}: {}", response.getId(), e.getMessage());
+        }
+        return response;
     }
 }

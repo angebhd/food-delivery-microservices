@@ -1,9 +1,7 @@
 package com.amalitech.fooddelivery.orderservice.entity;
 
 import jakarta.persistence.*;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.math.BigDecimal;
 
@@ -12,6 +10,7 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 @Builder
+@AllArgsConstructor @NoArgsConstructor
 public class OrderItemEntity {
 
   @Id
@@ -35,7 +34,10 @@ public class OrderItemEntity {
   @JoinColumn(name = "order_id", nullable = false)
   private OrderEntity order;
 
-  // ---- CROSS-DOMAIN RELATIONSHIP (monolith anti-pattern) ----
+  // ---- CROSS-DOMAIN REFERENCES (stored as snapshots at order time) ----
 
   private Long menuItemId;
+
+  /** Snapshot of the menu item name captured at order placement time. */
+  private String itemName;
 }

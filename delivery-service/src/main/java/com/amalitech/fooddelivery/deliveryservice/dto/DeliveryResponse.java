@@ -18,7 +18,7 @@ public class DeliveryResponse {
     private LocalDateTime deliveredAt;
     private LocalDateTime createdAt;
 
-    // MONOLITH: cross-domain order info embedded
+    // Cross-domain data enriched via Feign calls in the service layer
     private Long orderId;
     private String orderStatus;
     private Long customerId;
@@ -38,14 +38,8 @@ public class DeliveryResponse {
         dto.setDeliveredAt(d.getDeliveredAt());
         dto.setCreatedAt(d.getCreatedAt());
 
-        // TODO:
-//        // MONOLITH: cross-domain entity traversal
-//        dto.setOrderId(d.getOrder().getId());
-//        dto.setOrderStatus(d.getOrder().getStatus().name());
-//        dto.setCustomerId(d.getOrder().getCustomer().getId());
-//        dto.setCustomerName(d.getOrder().getCustomer().getFirstName()
-//                + " " + d.getOrder().getCustomer().getLastName());
-//        dto.setRestaurantName(d.getOrder().getRestaurant().getName());
+        // Cross-domain ID stored locally; remaining fields enriched in the service layer
+        dto.setOrderId(d.getOrderId());
         return dto;
     }
 }

@@ -6,6 +6,7 @@ import com.amalitech.fooddelivery.orderservice.service.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,22 +21,22 @@ public class OrderController {
         this.orderService = orderService;
     }
 
-//    @PostMapping
-//    public ResponseEntity<OrderResponse> placeOrder(
-//            Authentication auth, @Valid @RequestBody PlaceOrderRequest request) {
-//        return ResponseEntity.status(HttpStatus.CREATED)
-//                .body(orderService.placeOrder(auth.getName(), request));
-//    }
+    @PostMapping
+    public ResponseEntity<OrderResponse> placeOrder(
+            Authentication auth, @Valid @RequestBody PlaceOrderRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(orderService.placeOrder(auth.getName(), request));
+    }
 
     @GetMapping("/{id}")
     public ResponseEntity<OrderResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.getOrderById(id));
     }
 
-//    @GetMapping("/my-orders")
-//    public ResponseEntity<List<OrderResponse>> getMyOrders(Authentication auth) {
-//        return ResponseEntity.ok(orderService.getCustomerOrders(auth.getName()));
-//    }
+    @GetMapping("/my-orders")
+    public ResponseEntity<List<OrderResponse>> getMyOrders(Authentication auth) {
+        return ResponseEntity.ok(orderService.getCustomerOrders(auth.getName()));
+    }
 
     @GetMapping("/restaurant/{restaurantId}")
     public ResponseEntity<List<OrderResponse>> getRestaurantOrders(
@@ -49,9 +50,9 @@ public class OrderController {
         return ResponseEntity.ok(orderService.updateOrderStatus(id, status));
     }
 
-//    @PostMapping("/{id}/cancel")
-//    public ResponseEntity<OrderResponse> cancel(
-//            @PathVariable Long id, Authentication auth) {
-//        return ResponseEntity.ok(orderService.cancelOrder(id, auth.getName()));
-//    }
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<OrderResponse> cancel(
+            @PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(orderService.cancelOrder(id, auth.getName()));
+    }
 }

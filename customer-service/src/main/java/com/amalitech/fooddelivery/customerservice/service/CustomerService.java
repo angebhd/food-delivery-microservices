@@ -75,6 +75,14 @@ public class CustomerService {
         return CustomerResponse.fromEntity(customerRepository.save(customer));
     }
 
+    @Transactional
+    public CustomerResponse updateProfile(String username) {
+        CustomerEntity customer = customerRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException(CUSTOMER, USERNAME, username));
+        customer.setRole(CustomerEntity.Role.RESTAURANT_OWNER);
+        return CustomerResponse.fromEntity(customerRepository.save(customer));
+    }
+
     public CustomerEntity findEntityByUsername(String username) {
         return customerRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException(CUSTOMER, USERNAME, username));

@@ -17,7 +17,7 @@ public class RestaurantResponse {
     private int estimatedDeliveryMinutes;
     private int menuItemCount;
 
-    // MONOLITH: owner info embedded via direct entity traversal
+    // Owner info enriched via Feign call to Customer Service in the service layer
     private Long ownerId;
     private String ownerName;
 
@@ -34,10 +34,8 @@ public class RestaurantResponse {
         dto.setRating(r.getRating());
         dto.setEstimatedDeliveryMinutes(r.getEstimatedDeliveryMinutes());
         dto.setMenuItemCount(r.getMenuItems() != null ? r.getMenuItems().size() : 0);
-        // MONOLITH: cross-domain entity traversal
-        // TODO
-//        dto.setOwnerId(r.getOwner().getId());
-//        dto.setOwnerName(r.getOwner().getFirstName() + " " + r.getOwner().getLastName());
+        dto.setOwnerId(r.getOwnerId());
+        // ownerName is enriched via Feign call in the service layer
         return dto;
     }
 }

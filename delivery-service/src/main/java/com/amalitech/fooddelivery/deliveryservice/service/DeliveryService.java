@@ -1,11 +1,16 @@
 package com.amalitech.fooddelivery.deliveryservice.service;
 
-import com.amalitech.fooddelivery.deliveryservice.dto.DeliveryResponse;
+import com.amalitech.fooddelivery.deliveryservice.client.CustomerInterface;
+import com.amalitech.fooddelivery.deliveryservice.client.OrderInterface;
+import com.amalitech.fooddelivery.deliveryservice.config.RabbitMQConfig;
+import com.amalitech.fooddelivery.deliveryservice.dto.*;
 import com.amalitech.fooddelivery.deliveryservice.entity.DeliveryEntity;
 import com.amalitech.fooddelivery.deliveryservice.exception.ResourceNotFoundException;
 import com.amalitech.fooddelivery.deliveryservice.repository.DeliveryRepository;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,20 +18,22 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * MONOLITH COUPLING: DeliveryService directly accesses Order entity
- * (and through it, Customer and Restaurant entities).
+ * Delivery Service business logic.
  *
- * In microservices:
- *  - Delivery Service subscribes to OrderPlacedEvent via RabbitMQ
- *  - Stores orderId, customerAddress, restaurantAddress as local data
- *  - Publishes DeliveryStatusUpdatedEvent when status changes
- *  - No direct dependency on Order, Customer, or Restaurant entities
+ * In the microservice architecture:
+ *  - Subscribes to OrderPlacedEvent via RabbitMQ to create deliveries asynchronously
+ *  - Stores orderId as a local reference
+ *  - Publishes DeliveryStatusUpdatedEvent when delivery status changes
+ *  - Enriches delivery responses with order/customer info via Feign calls
  */
 @Service
+@RequiredArgsConstructor
 public class DeliveryService {
 
     private static final Logger log = LoggerFactory.getLogger(DeliveryService.class);
-
+    private final CustomerInterface customerService;
+    private final OrderInterface orderService;
+    private final RabbitTemplate rabbitTemplate;
     private final DeliveryRepository deliveryRepository;
 
     // Simulated driver pool — in reality this would be its own service
@@ -37,65 +44,60 @@ public class DeliveryService {
             "+1-555-0101", "+1-555-0102", "+1-555-0103", "+1-555-0104", "+1-555-0105"
     };
 
-    public DeliveryService(DeliveryRepository deliveryRepository) {
-        this.deliveryRepository = deliveryRepository;
-    }
 
     /**
-     * MONOLITH PROBLEM: Called SYNCHRONOUSLY from OrderService.placeOrder().
-     * This blocks the order response until delivery is assigned.
-     *
-     * In microservices: Delivery Service consumes OrderPlacedEvent
-     * from RabbitMQ and creates the delivery ASYNCHRONOUSLY.
+     * Creates a delivery assignment for an order.
+     * Triggered asynchronously by consuming OrderPlacedEvent from RabbitMQ.
      */
-    // TODO: Implemennt Interservice sommunication
-//    @Transactional
-//    public void createDeliveryForOrder(Order order) {
-//        int driverIndex = (int) (Math.random() * DRIVERS.length);
-//
-//        DeliveryEntity delivery = DeliveryEntity.builder()
-//                .order(order)  // MONOLITH: direct entity reference
-//                .status(DeliveryEntity.DeliveryStatus.ASSIGNED)
-//                .driverName(DRIVERS[driverIndex])
-//                .driverPhone(PHONES[driverIndex])
-//                // MONOLITH: accessing Customer and Restaurant through Order entity
-//                .pickupAddress(order.getRestaurant().getAddress())
-//                .deliveryAddress(order.getDeliveryAddress())
-//                .assignedAt(LocalDateTime.now())
-//                .build();
-//
-//        deliveryRepository.save(delivery);
-//
-//        // MONOLITH PROBLEM: Synchronous "notification" log
-//        // In microservices, publish DeliveryAssignedEvent to RabbitMQ
-//        log.info("NOTIFICATION: Delivery assigned to {} for order #{} — "
-//                        + "Customer: {} {}, Restaurant: {}",
-//                DRIVERS[driverIndex],
-//                order.getId(),
-//                order.getCustomer().getFirstName(),  // CROSS-DOMAIN
-//                order.getCustomer().getLastName(),    // CROSS-DOMAIN
-//                order.getRestaurant().getName());     // CROSS-DOMAIN
-//    }
+    @Transactional
+    public void createDeliveryForOrder(OrderResponse order) {
+        int driverIndex = (int) (Math.random() * DRIVERS.length);
+
+        DeliveryEntity delivery = DeliveryEntity.builder()
+                .orderId(order.getId())
+                .status(DeliveryEntity.DeliveryStatus.ASSIGNED)
+                .driverName(DRIVERS[driverIndex])
+                .driverPhone(PHONES[driverIndex])
+                .pickupAddress(order.getRestaurantAddress())
+                .deliveryAddress(order.getDeliveryAddress())
+                .assignedAt(LocalDateTime.now())
+                .build();
+
+        deliveryRepository.save(delivery);
+
+        log.info("NOTIFICATION: Delivery assigned to {} for order #{} — Customer: {}, Restaurant: {}",
+                DRIVERS[driverIndex],
+                order.getId(),
+                order.getCustomerName(),
+                order.getRestaurantName());
+
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.APP_EXCHANGE,
+                DeliveryRoutingKey.DELIVERY_UPDATE.getRoutingKey(),
+                new DeliveryUpdateEvent(delivery.getOrderId(), "CONFIRMED")
+        );
+
+    }
 
     @Transactional(readOnly = true)
     public DeliveryResponse getByOrderId(Long orderId) {
         DeliveryEntity delivery = deliveryRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery", "orderId", orderId));
-        return DeliveryResponse.fromEntity(delivery);
+        return enrichWithOrderInfo(DeliveryResponse.fromEntity(delivery));
     }
 
     @Transactional(readOnly = true)
     public DeliveryResponse getById(Long deliveryId) {
         DeliveryEntity delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery", "id", deliveryId));
-        return DeliveryResponse.fromEntity(delivery);
+        return enrichWithOrderInfo(DeliveryResponse.fromEntity(delivery));
     }
 
     @Transactional(readOnly = true)
     public List<DeliveryResponse> getByStatus(String status) {
         DeliveryEntity.DeliveryStatus deliveryStatus = DeliveryEntity.DeliveryStatus.valueOf(status.toUpperCase());
         return deliveryRepository.findByStatus(deliveryStatus)
-                .stream().map(DeliveryResponse::fromEntity).toList();
+                .stream().map(DeliveryResponse::fromEntity).map(this::enrichWithOrderInfo).toList();
     }
 
     @Transactional
@@ -110,19 +112,17 @@ public class DeliveryService {
             case PICKED_UP -> delivery.setPickedUpAt(LocalDateTime.now());
             case DELIVERED -> {
                 delivery.setDeliveredAt(LocalDateTime.now());
-                // MONOLITH: directly updating Order status from Delivery domain
-//                delivery.getOrder().setStatus(Order.OrderStatus.DELIVERED); // TODO
+                // Produce DeliveryUpdateEvent to RabbitMQ so Order Service can update order status and notify customer
+                rabbitTemplate.convertAndSend(
+                        RabbitMQConfig.APP_EXCHANGE,
+                        DeliveryRoutingKey.DELIVERY_UPDATE.getRoutingKey(),
+                        new DeliveryUpdateEvent(delivery.getOrderId(), newStatus.name())
+                );
+
             }
-            default -> {}
         }
 
-        // TODO
-        // MONOLITH PROBLEM: synchronous notification
-//        log.info("NOTIFICATION: Delivery #{} status changed to {} — "
-//                        + "Customer: {} {}",
-//                deliveryId, newStatus,
-//                delivery.getOrder().getCustomer().getFirstName(),  // CROSS-DOMAIN
-//                delivery.getOrder().getCustomer().getLastName());  // CROSS-DOMAIN
+        log.info("NOTIFICATION: Delivery #{} status changed to {} — OrderId: {}", deliveryId, newStatus, delivery.getOrderId());
 
         return DeliveryResponse.fromEntity(deliveryRepository.save(delivery));
     }
@@ -133,7 +133,29 @@ public class DeliveryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery", "id", deliveryId));
         delivery.setStatus(DeliveryEntity.DeliveryStatus.FAILED);
         deliveryRepository.save(delivery);
-
         log.info("NOTIFICATION: Delivery #{} cancelled", deliveryId);
+    }
+
+    /**
+     * Enriches a DeliveryResponse with order, customer, and restaurant information
+     * fetched from the Order Service and Customer Service via Feign.
+     * Uses a try-catch so that a downstream service outage does not break delivery retrieval.
+     */
+    private DeliveryResponse enrichWithOrderInfo(DeliveryResponse response) {
+        if (response.getOrderId() == null) {
+            return response;
+        }
+        try {
+            OrderResponse order = orderService.getById(response.getOrderId());
+            if (order != null) {
+                response.setOrderStatus(order.getStatus());
+                response.setCustomerId(order.getCustomerId());
+                response.setCustomerName(order.getCustomerName());
+                response.setRestaurantName(order.getRestaurantName());
+            }
+        } catch (Exception e) {
+            log.warn("Could not fetch order info for delivery {}: {}", response.getId(), e.getMessage());
+        }
+        return response;
     }
 }

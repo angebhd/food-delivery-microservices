@@ -19,13 +19,14 @@ public class OrderResponse {
     private LocalDateTime estimatedDeliveryTime;
     private List<OrderItemDetail> items;
 
-    // MONOLITH: cross-domain data embedded directly
+    // Cross-domain data from snapshot fields stored at order placement time
     private Long customerId;
     private String customerName;
     private Long restaurantId;
     private String restaurantName;
+    private String restaurantAddress;
 
-    // Delivery info embedded (monolith convenience)
+    // Delivery info enriched via Feign call at read time
     private String deliveryStatus;
     private String driverName;
     private String driverPhone;
@@ -50,25 +51,18 @@ public class OrderResponse {
         dto.setCreatedAt(o.getCreatedAt());
         dto.setEstimatedDeliveryTime(o.getEstimatedDeliveryTime());
 
-        // MONOLITH: cross-domain entity traversal
+        // Cross-domain data from snapshot fields stored at order placement time
         dto.setCustomerId(o.getCustomerId());
-//        dto.setCustomerName(o.getCustomer().getFirstName() + " " + o.getCustomer().getLastName()); // TODO
+        dto.setCustomerName(o.getCustomerName());
         dto.setRestaurantId(o.getRestaurantId());
-//        dto.setRestaurantName(o.getRestaurant().getName()); // TODO
+        dto.setRestaurantName(o.getRestaurantName());
+        dto.setRestaurantAddress(o.getRestaurantAddress());
 
-        // MONOLITH: cross-domain delivery info
-        // TODO
-//        if (o.getDeliveryId() != null) {
-//            dto.setDeliveryStatus(o.getDelivery().getStatus().name());
-//            dto.setDriverName(o.getDelivery().getDriverName());
-//            dto.setDriverPhone(o.getDelivery().getDriverPhone());
-//        }
-
-        // Map order items with menu item names from Restaurant domain
+        // Map order items with snapshot item names
         dto.setItems(o.getItems().stream().map(item -> {
             OrderItemDetail detail = new OrderItemDetail();
             detail.setId(item.getId());
-//            detail.setItemName(item.getMenuItem().getName()); // MONOLITH: cross-domain! // TODO
+            detail.setItemName(item.getItemName());
             detail.setQuantity(item.getQuantity());
             detail.setUnitPrice(item.getUnitPrice());
             detail.setSubtotal(item.getSubtotal());
