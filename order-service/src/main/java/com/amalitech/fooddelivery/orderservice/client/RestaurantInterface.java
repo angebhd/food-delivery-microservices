@@ -6,7 +6,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
-@FeignClient("RESTAURANT-SERVICE")
+@FeignClient(name = "RESTAURANT-SERVICE", fallbackFactory = RestaurantInterfaceFallbackFactory.class)
 public interface RestaurantInterface {
   @GetMapping("/api/restaurants/{id}")
   RestaurantResponse findEntityById(@PathVariable Long id);

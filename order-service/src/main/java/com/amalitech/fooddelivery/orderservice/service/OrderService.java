@@ -26,10 +26,10 @@ import java.util.List;
  * Order Service business logic.
  *
  * Cross-domain communication:
- *  - Validates customer via Feign call to Customer Service
- *  - Validates restaurant and menu items via Feign call to Restaurant Service
+ *  - Validates customer via Feign call to Customer Service (circuit-breaker protected)
+ *  - Validates restaurant and menu items via Feign call to Restaurant Service (circuit-breaker protected)
  *  - Publishes OrderPlacedEvent to RabbitMQ; Delivery Service subscribes asynchronously
- *  - Enriches order responses with delivery info via Feign call to Delivery Service
+ *  - Enriches order responses with delivery info via Feign call to Delivery Service (circuit-breaker protected, graceful degradation)
  */
 @Slf4j
 @Service
@@ -45,8 +45,12 @@ public class OrderService {
 
     @Transactional
     public OrderResponse placeOrder(String customerUsername, PlaceOrderRequest request) {
+        // Circuit breaker on CustomerInterface: if Customer Service is DOWN,
+        // CustomerInterfaceFallbackFactory throws ServiceUnavailableException
         CustomerResponse customer = customerService.findEntityByUsername(customerUsername);
 
+        // Circuit breaker on RestaurantInterface: if Restaurant Service is DOWN,
+        // RestaurantInterfaceFallbackFactory throws ServiceUnavailableException
         RestaurantResponse restaurant = restaurantService.findEntityById(request.getRestaurantId());
 
         if (!restaurant.isActive()) {
@@ -100,8 +104,15 @@ public class OrderService {
         order.setTotalAmount(total);
         OrderEntity savedOrder = orderRepository.save(order);
 
-        // Publish OrderPlacedEvent so Delivery Service creates a delivery asynchronously
-        rabbitTemplate.convertAndSend(RabbitMQConfig.APP_EXCHANGE, OrderRoutingKey.ORDER_PLACED.getRoutingKey(), savedOrder);
+        // Publish OrderPlacedEvent so Delivery Service creates a delivery asynchronously.
+        // If Delivery Service is DOWN, the message stays in RabbitMQ and is processed
+        // once the service recovers — the order itself is already persisted successfully.
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.APP_EXCHANGE, OrderRoutingKey.ORDER_PLACED.getRoutingKey(), savedOrder);
+        } catch (Exception e) {
+            log.warn("Failed to publish OrderPlacedEvent for order {}. " +
+                    "Delivery will be created when messaging recovers. Cause: {}", savedOrder.getId(), e.getMessage());
+        }
 
         return OrderResponse.fromEntity(savedOrder);
     }
@@ -156,15 +167,21 @@ public class OrderService {
         order.setStatus(OrderEntity.OrderStatus.CANCELLED);
 
         // Publish cancellation event so Delivery Service can cancel the delivery asynchronously
-        rabbitTemplate.convertAndSend(RabbitMQConfig.APP_EXCHANGE,
-                OrderRoutingKey.ORDER_DELETED.getRoutingKey(), OrderResponse.fromEntity(order));
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.APP_EXCHANGE,
+                    OrderRoutingKey.ORDER_DELETED.getRoutingKey(), OrderResponse.fromEntity(order));
+        } catch (Exception e) {
+            log.warn("Failed to publish order cancellation event for order {}. Cause: {}", orderId, e.getMessage());
+        }
 
         return OrderResponse.fromEntity(orderRepository.save(order));
     }
 
     /**
      * Enriches an OrderResponse with delivery information fetched from the Delivery Service.
-     * Uses a try-catch so that a Delivery Service outage does not break order retrieval.
+     * Circuit breaker on DeliveryInterface: if Delivery Service is DOWN,
+     * DeliveryInterfaceFallbackFactory returns null — the order is still returned
+     * with delivery status marked as UNAVAILABLE.
      */
     private OrderResponse enrichWithDeliveryInfo(OrderResponse response) {
         try {
@@ -173,9 +190,12 @@ public class OrderService {
                 response.setDeliveryStatus(delivery.getStatus());
                 response.setDriverName(delivery.getDriverName());
                 response.setDriverPhone(delivery.getDriverPhone());
+            } else {
+                response.setDeliveryStatus("UNAVAILABLE");
             }
         } catch (Exception e) {
             log.warn("Could not fetch delivery info for order {}: {}", response.getId(), e.getMessage());
+            response.setDeliveryStatus("UNAVAILABLE");
         }
         return response;
     }
