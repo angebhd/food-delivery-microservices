@@ -1,611 +1,402 @@
 # Food Delivery Platform -- Microservices Architecture
 
+A production-grade food delivery platform built with Spring Boot 4.0.3 and Spring Cloud 2025.1.0, decomposed into independently deployable microservices communicating via REST (OpenFeign) and asynchronous messaging (RabbitMQ).
+
+---
+
 ## Table of Contents
 
-1. [Project Overview](#project-overview)
-2. [Architecture](#architecture)
-3. [Technology Stack](#technology-stack)
-4. [Service Catalog](#service-catalog)
-5. [API Contracts](#api-contracts)
-6. [Event-Driven Messaging](#event-driven-messaging)
-7. [Security Model](#security-model)
-8. [Database Design](#database-design)
-9. [Getting Started](#getting-started)
-10. [Migration Decision Log](#migration-decision-log)
-11. [End-to-End Test Flow](#end-to-end-test-flow)
+1. [Architecture Overview](#architecture-overview)
+2. [Technology Stack](#technology-stack)
+3. [Services](#services)
+   - [Discovery Service](#discovery-service)
+   - [API Gateway](#api-gateway)
+   - [Customer Service](#customer-service)
+   - [Restaurant Service](#restaurant-service)
+   - [Order Service](#order-service)
+   - [Delivery Service](#delivery-service)
+4. [Inter-Service Communication](#inter-service-communication)
+5. [Circuit Breaker and Resilience](#circuit-breaker-and-resilience)
+6. [Authentication and Security](#authentication-and-security)
+7. [Asynchronous Messaging](#asynchronous-messaging)
+8. [API Reference](#api-reference)
+9. [Running the Application](#running-the-application)
+10. [Monitoring and Observability](#monitoring-and-observability)
+11. [Database Schema](#database-schema)
+12. [Project Structure](#project-structure)
 
 ---
 
-## Project Overview
-
-This project is a food delivery platform decomposed from a monolithic Spring Boot application into a set of independently deployable microservices. Each service owns its domain, manages its own database, and communicates with other services through REST (OpenFeign) and asynchronous messaging (RabbitMQ).
-
-The platform supports the full food delivery lifecycle: customer registration and authentication, restaurant and menu management, order placement and tracking, and delivery assignment and status updates.
-
----
-
-## Architecture
+## Architecture Overview
 
 ```
-                          Client (Browser / Postman)
-                                    |
-                                    v
-                    +-------------------------------+
-                    |    API Gateway (:8080)         |
-                    |  JWT Auth Filter               |
-                    |  Route Predicates              |
-                    +-------------------------------+
-                      |        |        |        |
-        +-------------+  +----+----+  +-+------+ +----------+
-        |                |          |            |            |
-        v                v          v            v            v
-  +-----------+  +------------+  +----------+  +-----------+  +-----------+
-  | Customer  |  | Restaurant |  |  Order   |  | Delivery  |  | Discovery |
-  | Service   |  | Service    |  | Service  |  | Service   |  | Service   |
-  | :8081     |  | :8084      |  | :8083    |  | :8082     |  | :8761     |
-  +-----------+  +------------+  +----------+  +-----------+  +-----------+
-        |              |              |              |
-        v              v              v              v
-  +-----------+  +------------+  +----------+  +-----------+
-  |customer_db|  |restaurant_db| | order_db |  |delivery_db|
-  +-----------+  +------------+  +----------+  +-----------+
-                                      |              |
-                                      v              v
-                              +---------------------------+
-                              |       RabbitMQ (:5672)    |
-                              |   Topic Exchange:         |
-                              |     app.exchange          |
-                              +---------------------------+
+                         +-------------------+
+                         | Discovery Service |
+                         |  (Eureka Server)  |
+                         |    Port: 8761     |
+                         +---------+---------+
+                                   |
+              Registry/Discovery   |
+       +----------+----------+----+----+----------+
+       |          |          |         |          |
++------+------+ +-+--------+ +--------+-+ +------+------+
+|  API        | | Customer | | Order     | | Restaurant  |
+|  Gateway    | | Service  | | Service   | | Service     |
+|  Port: 8080 | | Port: 8081| | Port: 8083| | Port: 8084 |
++------+------+ +----------+ +-----+-----+ +------+------+
+       |                            |              |
+       |                     +------+------+       |
+       |                     | Delivery    |       |
+       |                     | Service     |       |
+       |                     | Port: 8082  |       |
+       |                     +------+------+       |
+       |                            |              |
+       +------- RabbitMQ -----------+--------------+
+                (Port: 5672)
 ```
 
-### Inter-Service Communication
-
-| Source Service    | Target Service      | Method    | Purpose                                      |
-|-------------------|---------------------|-----------|----------------------------------------------|
-| API Gateway       | Customer Service    | Feign     | Register, login, fetch customer by username   |
-| Restaurant Service| Customer Service    | Feign     | Validate owner, promote role, fetch by ID     |
-| Order Service     | Customer Service    | Feign     | Validate customer at order placement          |
-| Order Service     | Restaurant Service  | Feign     | Validate restaurant and menu items            |
-| Order Service     | Delivery Service    | Feign     | Enrich order responses with delivery info     |
-| Delivery Service  | Order Service       | Feign     | Enrich delivery responses with order info     |
-| Delivery Service  | Customer Service    | Feign     | Fetch customer details for delivery context   |
-| Order Service     | Delivery Service    | RabbitMQ  | Publish OrderPlacedEvent, OrderCancelledEvent |
-| Delivery Service  | Order Service       | RabbitMQ  | Publish DeliveryStatusUpdatedEvent            |
+All services register with the Eureka Discovery Service. The API Gateway acts as the single entry point, routing external requests to the appropriate downstream service. Inter-service calls use OpenFeign with Resilience4j circuit breakers. Order-to-Delivery communication is event-driven via RabbitMQ.
 
 ---
 
 ## Technology Stack
 
-| Component              | Technology                                        |
-|------------------------|---------------------------------------------------|
-| Language               | Java 21                                           |
-| Framework              | Spring Boot 4.0.3                                 |
-| Cloud                  | Spring Cloud 2025.1.0                             |
-| Service Discovery      | Spring Cloud Netflix Eureka                       |
-| API Gateway            | Spring Cloud Gateway (WebMVC)                     |
-| Inter-Service REST     | Spring Cloud OpenFeign                            |
-| Message Broker         | RabbitMQ 3 (Management)                           |
-| Database               | PostgreSQL (one database per service)             |
-| ORM                    | Spring Data JPA / Hibernate                       |
-| Authentication         | JWT (issued at API Gateway, validated per request)|
-| Fault Tolerance        | Resilience4j Circuit Breaker (dependency included)|
-| Containerization       | Docker, Docker Compose                            |
-| Build Tool             | Apache Maven                                      |
+| Component              | Technology                                      |
+|------------------------|--------------------------------------------------|
+| Runtime                | Java 21                                          |
+| Framework              | Spring Boot 4.0.3                                |
+| Cloud Framework        | Spring Cloud 2025.1.0                            |
+| Service Discovery      | Netflix Eureka                                   |
+| API Gateway            | Spring Cloud Gateway (WebMVC)                    |
+| Inter-Service Calls    | Spring Cloud OpenFeign                           |
+| Circuit Breaker        | Resilience4j (via Spring Cloud CircuitBreaker)    |
+| Messaging              | RabbitMQ with Spring AMQP                        |
+| Persistence            | Spring Data JPA with PostgreSQL                  |
+| Security               | Spring Security with JWT (JJWT 0.13.0)          |
+| Monitoring             | Spring Boot Actuator, Micrometer, Prometheus     |
+| Build Tool             | Apache Maven                                     |
+| Containerization       | Docker, Docker Compose                           |
 
 ---
 
-## Service Catalog
+## Services
 
 ### Discovery Service
 
-| Property   | Value                    |
-|------------|--------------------------|
-| Port       | 8761                     |
-| Database   | None                     |
-| Purpose    | Eureka service registry  |
-| Dashboard  | http://localhost:8761    |
+| Property   | Value                          |
+|------------|--------------------------------|
+| Port       | 8761                           |
+| Role       | Eureka Server for service registration and discovery |
 
-All microservices register with Eureka on startup and use logical service names for inter-service calls (e.g., `CUSTOMER-SERVICE`, `RESTAURANT-SERVICE`).
-
----
+All microservices register themselves with the Discovery Service on startup. Feign clients resolve service names (e.g., `CUSTOMER-SERVICE`) to physical addresses through the Eureka registry.
 
 ### API Gateway
 
-| Property   | Value                         |
-|------------|-------------------------------|
-| Port       | 8080                          |
-| Database   | None                          |
-| Purpose    | Single entry point, JWT auth, routing |
+| Property   | Value                          |
+|------------|--------------------------------|
+| Port       | 8080                           |
+| Role       | Single entry point, JWT authentication, request routing |
+
+The API Gateway handles all external traffic. It validates JWT tokens via a custom `JwtAuthenticationFilter`, injects `X-Auth-User` and `X-Auth-Role` headers into forwarded requests, and routes to downstream services using Spring Cloud Gateway with Eureka-based load balancing.
 
 **Route Configuration:**
 
-| Route Pattern          | Target Service     |
-|------------------------|--------------------|
-| `/api/auth/**`         | Handled locally    |
-| `/api/customers/**`    | Customer Service   |
-| `/api/restaurants/**`  | Restaurant Service |
-| `/api/orders/**`       | Order Service      |
-| `/api/deliveries/**`   | Delivery Service   |
-| `/eureka/**`           | Discovery Service  |
-
-The gateway validates JWT tokens and propagates `X-Auth-User` and `X-Auth-Role` headers to downstream services. Downstream services reconstruct the Spring Security context from these headers.
-
----
+| Route Pattern          | Target Service      |
+|------------------------|---------------------|
+| `/api/auth/**`         | Handled locally     |
+| `/api/customers/**`    | Customer Service    |
+| `/api/orders/**`       | Order Service       |
+| `/api/restaurants/**`  | Restaurant Service  |
+| `/api/deliveries/**`   | Delivery Service    |
 
 ### Customer Service
 
-| Property   | Value              |
-|------------|--------------------|
-| Port       | 8081               |
-| Database   | customer_db        |
-| Purpose    | Customer registration, profiles, role management |
+| Property   | Value                          |
+|------------|--------------------------------|
+| Port       | 8081                           |
+| Database   | `customer_db` (PostgreSQL)     |
+| Role       | Customer registration, profile management, role promotion |
 
-**Entities:**
+Manages customer accounts, including registration (with password hashing performed at the API Gateway), profile retrieval, profile updates, and promotion to `RESTAURANT_OWNER` role.
 
-- `CustomerEntity` -- Stores customer profile, credentials, role (`CUSTOMER`, `RESTAURANT_OWNER`, `ADMIN`), and a list of order IDs.
+**Key DTOs:**
 
-**DTOs:**
-
-| DTO               | Purpose                                          |
-|--------------------|--------------------------------------------------|
-| `RegisterRequest`  | Customer registration payload with validation    |
-| `CustomerResponse` | Customer profile response with order count       |
-| `AuthResponse`     | JWT token and basic customer info after login    |
-
----
+- `RegisterRequest` -- validated registration payload with username, email, password, and optional profile fields.
+- `CustomerResponse` -- customer profile data including order count.
+- `AuthResponse` -- JWT token with customer metadata.
 
 ### Restaurant Service
 
-| Property   | Value              |
-|------------|--------------------|
-| Port       | 8084               |
-| Database   | restaurant_db      |
-| Purpose    | Restaurant CRUD, menu item management            |
+| Property   | Value                          |
+|------------|--------------------------------|
+| Port       | 8084                           |
+| Database   | `restaurant_db` (PostgreSQL)   |
+| Role       | Restaurant and menu management, ownership validation |
 
-**Entities:**
+Manages restaurants and their menu items. Validates restaurant ownership by calling Customer Service via Feign. Enriches restaurant responses with owner name data.
 
-- `RestaurantEntity` -- Stores restaurant details, `ownerId` (references Customer Service), and a list of `MenuItemEntity`.
-- `MenuItemEntity` -- Stores menu item details, belongs to a restaurant.
+**Key DTOs:**
 
-**DTOs:**
-
-| DTO                  | Purpose                                          |
-|-----------------------|--------------------------------------------------|
-| `RestaurantRequest`   | Create/update restaurant payload                 |
-| `RestaurantResponse`  | Restaurant details with owner name (enriched via Feign) |
-| `MenuItemRequest`     | Create/update menu item payload                  |
-| `MenuItemResponse`    | Menu item details with restaurant name           |
-| `CustomerResponse`    | Lightweight DTO for receiving customer data via Feign |
-| `RegisterRequest`     | Used for Feign client compatibility              |
-
----
+- `RestaurantRequest` -- restaurant creation payload.
+- `RestaurantResponse` -- restaurant data enriched with owner info and menu item count.
+- `MenuItemRequest` -- menu item creation/update payload with validation.
+- `MenuItemResponse` -- menu item details including restaurant association.
 
 ### Order Service
 
-| Property   | Value              |
-|------------|--------------------|
-| Port       | 8083               |
-| Database   | order_db           |
-| Purpose    | Order placement, tracking, status management     |
+| Property   | Value                          |
+|------------|--------------------------------|
+| Port       | 8083                           |
+| Database   | `order_db` (PostgreSQL)        |
+| Role       | Order placement, order lifecycle management |
 
-**Entities:**
+The central orchestration service. During order placement, it:
 
-- `OrderEntity` -- Stores order details including snapshot fields (`customerName`, `restaurantName`, `restaurantAddress`) captured at order placement time, `customerId`, `restaurantId`, `deliveryId`.
-- `OrderItemEntity` -- Stores order line items with `menuItemId`, `itemName` (snapshot), `quantity`, `unitPrice`, `subtotal`.
+1. Validates the customer via Customer Service (Feign).
+2. Validates the restaurant and menu items via Restaurant Service (Feign).
+3. Computes pricing from menu item data.
+4. Persists the order with snapshot fields (customer name, restaurant name/address, item names).
+5. Publishes an `OrderPlacedEvent` to RabbitMQ for asynchronous delivery assignment.
 
-**DTOs:**
+When retrieving orders, delivery information is enriched via a Feign call to Delivery Service. If Delivery Service is unavailable, the order is still returned with delivery status marked as `UNAVAILABLE`.
 
-| DTO                    | Purpose                                          |
-|-------------------------|--------------------------------------------------|
-| `PlaceOrderRequest`     | Order placement payload with restaurant ID and items |
-| `OrderItemRequest`      | Individual order item (menu item ID + quantity)  |
-| `OrderResponse`         | Full order details with customer/restaurant snapshots, delivery info enriched via Feign |
-| `OrderResponse.OrderItemDetail` | Nested DTO for order line item details  |
-| `CustomerResponse`      | Lightweight DTO for receiving customer data via Feign |
-| `RestaurantResponse`    | Lightweight DTO for receiving restaurant data via Feign |
-| `MenuItemResponse`      | Lightweight DTO for receiving menu item data via Feign |
-| `OrderRoutingKey`       | Enum defining RabbitMQ routing keys (`order.placed`, `order.updated`, `order.deleted`) |
-| `DeliveryUpdateEvent`   | Event received from Delivery Service via RabbitMQ |
+**Key DTOs:**
 
-**Cross-Domain Data Strategy:**
-
-The Order Service uses a **snapshot approach** for cross-domain data. At order placement time, the customer name, restaurant name, and restaurant address are stored directly on the `OrderEntity`, and the menu item name is stored on each `OrderItemEntity`. This eliminates the need for Feign calls on every read operation and ensures data consistency even if the source service changes the data later.
-
-Delivery information (driver name, driver phone, delivery status) is enriched at read time via a Feign call to the Delivery Service. If the Delivery Service is unavailable, the order is still returned with the delivery fields set to `null`.
-
----
+- `PlaceOrderRequest` -- order placement payload with restaurant ID, item list, and optional delivery address override.
+- `OrderItemRequest` -- individual order item with menu item ID, quantity, and special instructions.
+- `OrderResponse` -- full order data including snapshot fields, item details, and delivery enrichment.
+- `CustomerResponse` -- lightweight DTO mirroring customer data from Customer Service.
+- `RestaurantResponse` -- lightweight DTO mirroring restaurant data from Restaurant Service.
+- `MenuItemResponse` -- lightweight DTO mirroring menu item data from Restaurant Service.
+- `DeliveryUpdateEvent` -- event consumed from RabbitMQ when delivery status changes.
 
 ### Delivery Service
 
-| Property   | Value              |
-|------------|--------------------|
-| Port       | 8082               |
-| Database   | delivery_db        |
-| Purpose    | Delivery assignment, tracking, status updates    |
+| Property   | Value                          |
+|------------|--------------------------------|
+| Port       | 8082                           |
+| Database   | `delivery_db` (PostgreSQL)     |
+| Role       | Delivery assignment, driver management, delivery lifecycle |
 
-**Entities:**
+Listens for `OrderPlacedEvent` messages from RabbitMQ to create delivery assignments asynchronously. Assigns a driver from a simulated pool, publishes `DeliveryUpdateEvent` messages back to RabbitMQ so the Order Service can track delivery progress.
 
-- `DeliveryEntity` -- Stores delivery details including `orderId`, driver info, pickup/delivery addresses, timestamps, and status (`PENDING`, `ASSIGNED`, `PICKED_UP`, `IN_TRANSIT`, `DELIVERED`, `FAILED`).
+**Key DTOs:**
 
-**DTOs:**
-
-| DTO                    | Purpose                                          |
-|-------------------------|--------------------------------------------------|
-| `DeliveryResponse`      | Full delivery details with order/customer/restaurant info enriched via Feign |
-| `OrderResponse`         | Lightweight DTO for receiving order data via Feign |
-| `CustomerResponse`      | Lightweight DTO for receiving customer data via Feign |
-| `OrderDTO`              | Simplified order representation for internal use |
-| `RestaurantDTO`         | Simplified restaurant representation (name + address) |
-| `DeliveryUpdateEvent`   | Event published to RabbitMQ on delivery status change |
-| `DeliveryRoutingKey`    | Enum defining RabbitMQ routing key (`delivery.update`) |
+- `DeliveryResponse` -- delivery data enriched with order/customer info via Feign.
+- `OrderResponse` -- lightweight DTO mirroring order data from Order Service.
+- `CustomerResponse` -- lightweight DTO mirroring customer data from Customer Service.
+- `DeliveryUpdateEvent` -- event published to RabbitMQ on delivery status changes.
 
 ---
 
-## API Contracts
+## Inter-Service Communication
 
-### Authentication (API Gateway -- :8080)
+### Synchronous (OpenFeign)
 
-| Method | Endpoint            | Auth     | Request Body                  | Response            |
-|--------|---------------------|----------|-------------------------------|---------------------|
-| POST   | `/api/auth/register`| Public   | `RegisterRequest`             | `AuthResponse`      |
-| POST   | `/api/auth/login`   | Public   | `AuthRequest`                 | `AuthResponse`      |
+| Caller              | Target              | Feign Client             | Purpose                                     |
+|---------------------|----------------------|--------------------------|---------------------------------------------|
+| API Gateway         | Customer Service     | `CustomerInterface`      | Registration, login credential lookup        |
+| Order Service       | Customer Service     | `CustomerInterface`      | Customer validation during order placement   |
+| Order Service       | Restaurant Service   | `RestaurantInterface`    | Restaurant/menu validation and pricing       |
+| Order Service       | Delivery Service     | `DeliveryInterface`      | Delivery info enrichment on order retrieval  |
+| Restaurant Service  | Customer Service     | `CustomerInterface`      | Owner validation, role promotion             |
+| Delivery Service    | Order Service        | `OrderInterface`         | Order info enrichment on delivery retrieval  |
+| Delivery Service    | Customer Service     | `CustomerInterface`      | Customer info enrichment                     |
 
-**RegisterRequest:**
-```json
-{
-  "username": "string (3-50 chars, required)",
-  "email": "string (valid email, required)",
-  "password": "string (min 6 chars, required)",
-  "firstName": "string",
-  "lastName": "string",
-  "phone": "string",
-  "deliveryAddress": "string",
-  "city": "string"
-}
-```
+All Feign clients propagate `X-Auth-User`, `X-Auth-Role`, and `Authorization` headers via a shared `FeignConfig` interceptor.
 
-**AuthRequest:**
-```json
-{
-  "username": "string (required)",
-  "password": "string (required)"
-}
-```
+### Asynchronous (RabbitMQ)
 
-**AuthResponse:**
-```json
-{
-  "token": "string (JWT)",
-  "customerId": 1,
-  "username": "string",
-  "role": "CUSTOMER"
-}
-```
+| Event                   | Producer       | Consumer         | Exchange         | Routing Key       |
+|-------------------------|----------------|------------------|------------------|-------------------|
+| Order Placed            | Order Service  | Delivery Service | `app.exchange`   | `order.placed`    |
+| Order Cancelled         | Order Service  | Delivery Service | `app.exchange`   | `order.deleted`   |
+| Delivery Status Update  | Delivery Service | Order Service  | `app.exchange`   | `delivery.update` |
+
+Both services define their own queue and binding configurations:
+
+- **Order Service** binds `order.queue` to `delivery.*` routing pattern (receives delivery updates).
+- **Delivery Service** binds `delivery.queue` to `order.*` routing pattern (receives order events).
 
 ---
 
-### Customer Service (via Gateway -- /api/customers)
+## Circuit Breaker and Resilience
 
-| Method | Endpoint                              | Auth      | Description                    |
-|--------|---------------------------------------|-----------|--------------------------------|
-| GET    | `/api/customers/me`                   | Required  | Get authenticated user profile |
-| PUT    | `/api/customers/me`                   | Required  | Update authenticated user profile |
-| GET    | `/api/customers/id/{id}`              | Required  | Get customer by ID             |
-| GET    | `/api/customers/username/{username}`  | Internal  | Get customer entity by username (used by Feign) |
-| POST   | `/api/customers/create`               | Internal  | Create customer (used by Gateway during registration) |
-| PUT    | `/api/customers/make-restaurant-owner`| Required  | Promote user to RESTAURANT_OWNER role |
+All inter-service Feign calls are protected by Resilience4j circuit breakers integrated through Spring Cloud CircuitBreaker with `FallbackFactory` implementations.
 
-**CustomerResponse:**
-```json
-{
-  "id": 1,
-  "username": "string",
-  "email": "string",
-  "firstName": "string",
-  "lastName": "string",
-  "phone": "string",
-  "deliveryAddress": "string",
-  "city": "string",
-  "role": "CUSTOMER",
-  "createdAt": "2025-01-01T00:00:00",
-  "orderCount": 0
-}
+### Configuration
+
+Circuit breaker configuration is externalized in each service's `application-docker.yaml`:
+
+| Parameter                                      | Value   |
+|------------------------------------------------|---------|
+| `slidingWindowSize`                            | 10      |
+| `minimumNumberOfCalls`                         | 5       |
+| `failureRateThreshold`                         | 50%     |
+| `waitDurationInOpenState`                      | 10s     |
+| `permittedNumberOfCallsInHalfOpenState`        | 3       |
+| `automaticTransitionFromOpenToHalfOpenEnabled`  | true    |
+| `timelimiter.timeoutDuration`                  | 3s      |
+
+### Circuit Breaker Instances
+
+| Service            | Instance Name        | Protected Feign Client    |
+|--------------------|----------------------|---------------------------|
+| API Gateway        | `customerService`    | `CustomerInterface`       |
+| Order Service      | `customerService`    | `CustomerInterface`       |
+| Order Service      | `restaurantService`  | `RestaurantInterface`     |
+| Order Service      | `deliveryService`    | `DeliveryInterface`       |
+| Restaurant Service | `customerService`    | `CustomerInterface`       |
+| Delivery Service   | `orderService`       | `OrderInterface`          |
+| Delivery Service   | `customerService`    | `CustomerInterface`       |
+
+### Fallback Behavior
+
+| Scenario                                 | Behavior                                                                                    |
+|------------------------------------------|---------------------------------------------------------------------------------------------|
+| Restaurant Service is DOWN               | Order placement is rejected with HTTP 503 and a clear business error message.               |
+| Customer Service is DOWN                 | Order placement, login, and registration are rejected with HTTP 503.                        |
+| Delivery Service is DOWN                 | Order creation succeeds; delivery is assigned asynchronously via RabbitMQ when the service recovers. Order retrieval returns delivery status as `UNAVAILABLE`. |
+| Order Service is DOWN (from Delivery)    | Delivery retrieval succeeds; order enrichment fields are omitted.                           |
+| Customer Service is DOWN (from Restaurant) | Restaurant creation/ownership validation fails with HTTP 503. Restaurant listing still returns data with owner name omitted. |
+
+### Fallback Factories
+
+Each Feign client has a corresponding `FallbackFactory` class that provides structured logging and domain-appropriate error handling:
+
+| Service            | FallbackFactory Class                         |
+|--------------------|-----------------------------------------------|
+| API Gateway        | `CustomerInterfaceFallbackFactory`            |
+| Order Service      | `CustomerInterfaceFallbackFactory`            |
+| Order Service      | `RestaurantInterfaceFallbackFactory`          |
+| Order Service      | `DeliveryInterfaceFallbackFactory`            |
+| Restaurant Service | `CustomerInterfaceFallbackFactory`            |
+| Delivery Service   | `OrderInterfaceFallbackFactory`               |
+| Delivery Service   | `CustomerInterfaceFallbackFactory`            |
+
+### Monitoring Circuit Breaker State
+
+Circuit breaker states (CLOSED, OPEN, HALF_OPEN) are exposed via Spring Boot Actuator:
+
 ```
-
----
-
-### Restaurant Service (via Gateway -- /api/restaurants)
-
-| Method | Endpoint                                | Auth      | Description                         |
-|--------|-----------------------------------------|-----------|-------------------------------------|
-| GET    | `/api/restaurants/search/city/{city}`   | Public    | Search restaurants by city           |
-| GET    | `/api/restaurants/search/cuisine/{type}`| Public    | Search restaurants by cuisine type   |
-| GET    | `/api/restaurants/search/all`           | Public    | List all active restaurants          |
-| GET    | `/api/restaurants/{id}`                 | Public    | Get restaurant by ID                 |
-| GET    | `/api/restaurants/{id}/menu`            | Public    | Get menu for a restaurant            |
-| GET    | `/api/restaurants/menu/{id}`            | Public    | Get menu item by ID                  |
-| POST   | `/api/restaurants`                      | Required  | Create restaurant (auto-promotes to RESTAURANT_OWNER) |
-| POST   | `/api/restaurants/{restaurantId}/menu`  | Required  | Add menu item to restaurant          |
-| PUT    | `/api/restaurants/menu/{itemId}`        | Required  | Update menu item                     |
-| PATCH  | `/api/restaurants/menu/{itemId}/toggle` | Required  | Toggle menu item availability        |
-
-**RestaurantRequest:**
-```json
-{
-  "name": "string (required)",
-  "description": "string",
-  "cuisineType": "string (required)",
-  "address": "string (required)",
-  "city": "string (required)",
-  "phone": "string",
-  "estimatedDeliveryMinutes": 30
-}
-```
-
-**RestaurantResponse:**
-```json
-{
-  "id": 1,
-  "name": "string",
-  "description": "string",
-  "cuisineType": "string",
-  "address": "string",
-  "city": "string",
-  "phone": "string",
-  "active": true,
-  "rating": 4.5,
-  "estimatedDeliveryMinutes": 30,
-  "menuItemCount": 5,
-  "ownerId": 1,
-  "ownerName": "John Doe"
-}
-```
-
-**MenuItemRequest:**
-```json
-{
-  "name": "string (required)",
-  "description": "string",
-  "price": 12.99,
-  "category": "string",
-  "imageUrl": "string"
-}
-```
-
-**MenuItemResponse:**
-```json
-{
-  "id": 1,
-  "name": "string",
-  "description": "string",
-  "price": 12.99,
-  "category": "string",
-  "available": true,
-  "imageUrl": "string",
-  "restaurantId": 1,
-  "restaurantName": "string"
-}
+GET http://localhost:{port}/actuator/health
+GET http://localhost:{port}/actuator/circuitbreakers
+GET http://localhost:{port}/actuator/circuitbreakerevents
+GET http://localhost:{port}/actuator/metrics/resilience4j.circuitbreaker.state
 ```
 
 ---
 
-### Order Service (via Gateway -- /api/orders)
+## Authentication and Security
 
-| Method | Endpoint                              | Auth      | Description                         |
-|--------|---------------------------------------|-----------|-------------------------------------|
-| POST   | `/api/orders`                         | Required  | Place a new order                    |
-| GET    | `/api/orders/{id}`                    | Required  | Get order by ID                      |
-| GET    | `/api/orders/my-orders`               | Required  | Get all orders for authenticated user|
-| GET    | `/api/orders/restaurant/{restaurantId}`| Required | Get all orders for a restaurant      |
-| PATCH  | `/api/orders/{id}/status?status=`     | Required  | Update order status                  |
-| POST   | `/api/orders/{id}/cancel`             | Required  | Cancel an order (only PLACED/CONFIRMED) |
+### JWT Flow
 
-**PlaceOrderRequest:**
-```json
-{
-  "restaurantId": 1,
-  "items": [
-    {
-      "menuItemId": 1,
-      "quantity": 2,
-      "specialInstructions": "string"
-    }
-  ],
-  "deliveryAddress": "string (optional, overrides customer default)",
-  "specialInstructions": "string"
-}
-```
+1. Client sends `POST /api/auth/register` or `POST /api/auth/login` to the API Gateway.
+2. The API Gateway authenticates the user (password verified via BCrypt), generates a JWT token signed with HMAC-SHA, and returns it.
+3. For subsequent requests, the client includes the token in the `Authorization: Bearer <token>` header.
+4. The `JwtAuthenticationFilter` in the API Gateway validates the token, extracts the username and role, and injects `X-Auth-User` and `X-Auth-Role` headers into the forwarded request.
+5. Downstream services use a `SecurityContextFilter` to reconstruct the Spring Security `Authentication` object from the forwarded headers.
 
-**OrderResponse:**
-```json
-{
-  "id": 1,
-  "status": "PLACED",
-  "totalAmount": 25.98,
-  "deliveryFee": 2.99,
-  "deliveryAddress": "string",
-  "specialInstructions": "string",
-  "createdAt": "2025-01-01T12:00:00",
-  "estimatedDeliveryTime": "2025-01-01T12:30:00",
-  "items": [
-    {
-      "id": 1,
-      "itemName": "Margherita Pizza",
-      "quantity": 2,
-      "unitPrice": 12.99,
-      "subtotal": 25.98
-    }
-  ],
-  "customerId": 1,
-  "customerName": "John Doe",
-  "restaurantId": 1,
-  "restaurantName": "Pizza Place",
-  "restaurantAddress": "123 Main St",
-  "deliveryStatus": "ASSIGNED",
-  "driverName": "Carlos Martinez",
-  "driverPhone": "+1-555-0101"
-}
-```
+### Security Configuration
 
-**Order Statuses:** `PLACED`, `CONFIRMED`, `PREPARING`, `READY_FOR_PICKUP`, `OUT_FOR_DELIVERY`, `DELIVERED`, `CANCELLED`
+- The API Gateway permits unauthenticated access to `/api/auth/**`, restaurant search endpoints, and actuator endpoints.
+- Downstream services trust the gateway's forwarded headers. The `SecurityContextFilter` populates the `SecurityContext` from `X-Auth-User` and `X-Auth-Role` headers.
+- Customer Service permits unauthenticated access to `/api/customers/create` and `/api/customers/username/{username}` (used by the gateway during registration and login).
 
 ---
 
-### Delivery Service (via Gateway -- /api/deliveries)
-
-| Method | Endpoint                               | Auth      | Description                         |
-|--------|----------------------------------------|-----------|-------------------------------------|
-| GET    | `/api/deliveries/{id}`                 | Required  | Get delivery by ID                   |
-| GET    | `/api/deliveries/order/{orderId}`      | Required  | Get delivery by order ID             |
-| GET    | `/api/deliveries/status/{status}`      | Required  | Get all deliveries by status         |
-| PATCH  | `/api/deliveries/{id}/status?status=`  | Required  | Update delivery status               |
-
-**DeliveryResponse:**
-```json
-{
-  "id": 1,
-  "status": "ASSIGNED",
-  "driverName": "Carlos Martinez",
-  "driverPhone": "+1-555-0101",
-  "pickupAddress": "123 Main St",
-  "deliveryAddress": "456 Oak Ave",
-  "assignedAt": "2025-01-01T12:00:05",
-  "pickedUpAt": null,
-  "deliveredAt": null,
-  "createdAt": "2025-01-01T12:00:05",
-  "orderId": 1,
-  "orderStatus": "CONFIRMED",
-  "customerId": 1,
-  "customerName": "John Doe",
-  "restaurantName": "Pizza Place"
-}
-```
-
-**Delivery Statuses:** `PENDING`, `ASSIGNED`, `PICKED_UP`, `IN_TRANSIT`, `DELIVERED`, `FAILED`
-
----
-
-## Event-Driven Messaging
+## Asynchronous Messaging
 
 ### RabbitMQ Configuration
 
-| Component       | Value                |
-|-----------------|----------------------|
-| Exchange        | `app.exchange`       |
-| Exchange Type   | Topic                |
-| Order Queue     | `order.queue`        |
-| Delivery Queue  | `delivery.queue`     |
+| Resource     | Value             |
+|--------------|-------------------|
+| Exchange     | `app.exchange` (Topic Exchange) |
+| Order Queue  | `order.queue` (bound to `delivery.*`) |
+| Delivery Queue | `delivery.queue` (bound to `order.*`) |
 
-### Message Flows
+Messages are serialized as JSON using `JacksonJsonMessageConverter`.
 
-**Order Placed Flow:**
+### Event Flow: Order Placement
 
-1. Customer places an order via Order Service.
-2. Order Service persists the order and publishes the order entity to `app.exchange` with routing key `order.placed`.
-3. Delivery Service consumes from `delivery.queue` (bound to `order.*`).
-4. Delivery Service creates a delivery assignment, assigns a driver, and publishes a `DeliveryUpdateEvent` with status `CONFIRMED` to `app.exchange` with routing key `delivery.update`.
-5. Order Service consumes from `order.queue` (bound to `delivery.*`) and updates the order status to `CONFIRMED`.
+1. Order Service saves the order and publishes to `app.exchange` with routing key `order.placed`.
+2. Delivery Service's `DeliveryListener` consumes the message from `delivery.queue`.
+3. Delivery Service creates a delivery assignment with a randomly selected driver.
+4. Delivery Service publishes a `DeliveryUpdateEvent` to `app.exchange` with routing key `delivery.update`.
+5. Order Service's `OrderListener` consumes the message from `order.queue` and updates the order status.
 
-**Delivery Status Update Flow:**
+### Event Flow: Order Cancellation
 
-1. Delivery status is updated (e.g., `PICKED_UP`, `DELIVERED`).
-2. Delivery Service publishes a `DeliveryUpdateEvent` to `app.exchange` with routing key `delivery.update`.
-3. Order Service consumes the event and maps the delivery status to the corresponding order status:
-   - `CONFIRMED` / `ASSIGNED` -> Order `CONFIRMED`
-   - `PICKED_UP` / `IN_TRANSIT` -> Order `OUT_FOR_DELIVERY`
-   - `DELIVERED` -> Order `DELIVERED`
-   - `FAILED` -> Order `CANCELLED`
-
-**Order Cancelled Flow:**
-
-1. Customer cancels an order.
-2. Order Service publishes the order to `app.exchange` with routing key `order.deleted`.
-3. Delivery Service can consume this event to cancel the associated delivery.
-
-### Routing Key Bindings
-
-| Queue            | Binding Pattern | Consumes Events From |
-|------------------|-----------------|----------------------|
-| `delivery.queue` | `order.*`       | Order Service        |
-| `order.queue`    | `delivery.*`    | Delivery Service     |
+1. Order Service publishes to `app.exchange` with routing key `order.deleted`.
+2. Delivery Service consumes the cancellation event and updates the delivery status to `FAILED`.
 
 ---
 
-## Security Model
+## API Reference
 
-### Authentication Flow
+### Authentication (API Gateway -- Port 8080)
 
-1. The client sends a `POST /api/auth/register` or `POST /api/auth/login` request to the API Gateway.
-2. The API Gateway issues a JWT token containing the username and role.
-3. For subsequent requests, the client includes the JWT in the `Authorization: Bearer <token>` header.
-4. The API Gateway validates the token and injects `X-Auth-User` and `X-Auth-Role` headers into the forwarded request.
-5. Each downstream service has a `SecurityContextFilter` that reads these headers and reconstructs the Spring Security `Authentication` object.
+| Method | Endpoint             | Auth     | Description               |
+|--------|----------------------|----------|---------------------------|
+| POST   | `/api/auth/register` | No       | Register a new customer   |
+| POST   | `/api/auth/login`    | No       | Authenticate and get JWT  |
 
-### Header Propagation
+### Customers (Customer Service -- Port 8081)
 
-When a downstream service makes a Feign call to another service, the `FeignConfig` interceptor propagates the `X-Auth-User`, `X-Auth-Role`, and `Authorization` headers from the original request.
+| Method | Endpoint                              | Auth     | Description                    |
+|--------|---------------------------------------|----------|--------------------------------|
+| POST   | `/api/customers/create`               | No       | Create customer (internal)     |
+| GET    | `/api/customers/me`                   | Yes      | Get authenticated user profile |
+| GET    | `/api/customers/id/{id}`              | Yes      | Get customer by ID             |
+| GET    | `/api/customers/username/{username}`  | No       | Get customer by username       |
+| PUT    | `/api/customers/me`                   | Yes      | Update profile                 |
+| PUT    | `/api/customers/make-restaurant-owner`| Yes      | Promote to restaurant owner    |
 
-### Public Endpoints
+### Restaurants (Restaurant Service -- Port 8084)
 
-The following endpoints do not require authentication:
+| Method | Endpoint                              | Auth     | Description                      |
+|--------|---------------------------------------|----------|----------------------------------|
+| GET    | `/api/restaurants/search/city/{city}` | No       | Search restaurants by city       |
+| GET    | `/api/restaurants/search/cuisine/{type}` | No    | Search by cuisine type           |
+| GET    | `/api/restaurants/search/all`         | No       | List all active restaurants      |
+| GET    | `/api/restaurants/{id}`               | Yes      | Get restaurant by ID             |
+| GET    | `/api/restaurants/{id}/menu`          | No       | Get restaurant menu              |
+| GET    | `/api/restaurants/menu/{id}`          | Yes      | Get menu item by ID              |
+| POST   | `/api/restaurants`                    | Yes      | Create restaurant                |
+| POST   | `/api/restaurants/{id}/menu`          | Yes      | Add menu item                    |
+| PUT    | `/api/restaurants/menu/{itemId}`      | Yes      | Update menu item                 |
+| PATCH  | `/api/restaurants/menu/{itemId}/toggle` | Yes    | Toggle menu item availability    |
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `GET /api/restaurants/search/**`
-- `GET /api/restaurants/{id}/menu`
-- `GET /api/restaurants/{id}`
+### Orders (Order Service -- Port 8083)
+
+| Method | Endpoint                              | Auth     | Description                    |
+|--------|---------------------------------------|----------|--------------------------------|
+| POST   | `/api/orders`                         | Yes      | Place a new order              |
+| GET    | `/api/orders/{id}`                    | Yes      | Get order by ID                |
+| GET    | `/api/orders/my-orders`               | Yes      | Get authenticated user orders  |
+| GET    | `/api/orders/restaurant/{restaurantId}` | Yes    | Get orders for a restaurant    |
+| PATCH  | `/api/orders/{id}/status`             | Yes      | Update order status            |
+| POST   | `/api/orders/{id}/cancel`             | Yes      | Cancel an order                |
+
+### Deliveries (Delivery Service -- Port 8082)
+
+| Method | Endpoint                              | Auth     | Description                    |
+|--------|---------------------------------------|----------|--------------------------------|
+| GET    | `/api/deliveries/{id}`                | Yes      | Get delivery by ID             |
+| GET    | `/api/deliveries/order/{orderId}`     | Yes      | Get delivery by order ID       |
+| GET    | `/api/deliveries/status/{status}`     | Yes      | Get deliveries by status       |
+| PATCH  | `/api/deliveries/{id}/status`         | Yes      | Update delivery status         |
 
 ---
 
-## Database Design
-
-Each service owns its database. Cross-domain references are stored as ID values rather than foreign keys. Where appropriate, snapshot fields store denormalized data at write time to avoid runtime Feign calls on reads.
-
-### customer_db
-
-| Table      | Key Columns                                                         |
-|------------|---------------------------------------------------------------------|
-| customers  | id, username, email, password, firstName, lastName, phone, deliveryAddress, city, role, createdAt |
-
-### restaurant_db
-
-| Table       | Key Columns                                                        |
-|-------------|---------------------------------------------------------------------|
-| restaurants | id, name, description, cuisineType, address, city, phone, active, rating, estimatedDeliveryMinutes, ownerId, createdAt |
-| menu_items  | id, name, description, price, category, available, imageUrl, restaurant_id |
-
-### order_db
-
-| Table       | Key Columns                                                        |
-|-------------|---------------------------------------------------------------------|
-| orders      | id, status, totalAmount, deliveryFee, deliveryAddress, specialInstructions, customerId, customerName, restaurantId, restaurantName, restaurantAddress, deliveryId, createdAt, estimatedDeliveryTime |
-| order_items | id, quantity, unitPrice, subtotal, specialInstructions, menuItemId, itemName, order_id |
-
-### delivery_db
-
-| Table       | Key Columns                                                        |
-|-------------|---------------------------------------------------------------------|
-| deliveries  | id, status, driverName, driverPhone, pickupAddress, deliveryAddress, orderId, assignedAt, pickedUpAt, deliveredAt, createdAt |
-
----
-
-## Getting Started
+## Running the Application
 
 ### Prerequisites
 
-- Docker and Docker Compose installed
-- (Optional) Java 21 and Maven for local development
+- Docker and Docker Compose installed.
+- Ports 5433, 5672, 15672, 8080, 8081, 8082, 8083, 8084, and 8761 available.
 
-### Running the Full System
-
-1. Clone the repository:
-
-```bash
-git clone <repository-url>
-cd food-delivery-microservice
-```
-
-2. Start all services with Docker Compose:
+### Start All Services
 
 ```bash
 docker compose up --build
@@ -613,216 +404,63 @@ docker compose up --build
 
 This starts the following containers:
 
-| Container           | Port(s)              |
-|---------------------|----------------------|
-| POSTGRES            | 5433:5432            |
-| RABBITMQ            | 5672, 15672          |
-| DISCOVERY-SERVICE   | 8761                 |
-| API-GATEWAY         | 8080                 |
-| CUSTOMER-SERVICE    | 8081                 |
-| DELIVERY-SERVICE    | 8082                 |
-| ORDER-SERVICE       | 8083                 |
-| RESTAURANT-SERVICE  | 8084                 |
+| Container           | Port(s)          |
+|---------------------|------------------|
+| PostgreSQL          | 5433:5432        |
+| RabbitMQ            | 5672, 15672      |
+| Discovery Service   | 8761             |
+| API Gateway         | 8080             |
+| Customer Service    | 8081             |
+| Delivery Service    | 8082             |
+| Order Service       | 8083             |
+| Restaurant Service  | 8084             |
 
-3. Verify services are registered:
-   - Eureka Dashboard: http://localhost:8761
-   - RabbitMQ Management: http://localhost:15672 (guest/guest)
-
-4. All API requests go through the gateway at `http://localhost:8080`.
-
-### Stopping the System
+### Stop All Services
 
 ```bash
 docker compose down
 ```
 
-To also remove the database volume:
+### Verify Services
 
-```bash
-docker compose down -v
-```
-
----
-
-## Migration Decision Log
-
-### Bounded Context Identification
-
-The monolith was decomposed into four bounded contexts based on domain-driven design principles:
-
-| Bounded Context | Domain Responsibility                        | Rationale                                   |
-|-----------------|----------------------------------------------|---------------------------------------------|
-| Customer        | User registration, authentication, profiles  | Owns user identity; changes independently of business logic |
-| Restaurant      | Restaurant CRUD, menu management             | Restaurant owners manage menus independently; different scaling profile from orders |
-| Order           | Order placement, pricing, status tracking    | Core transaction processing; highest complexity and change frequency |
-| Delivery        | Delivery assignment, driver management, tracking | Operationally distinct; benefits from asynchronous decoupling from orders |
-
-### Cross-Domain Data Strategy
-
-**Problem:** The monolith used JPA `@ManyToOne` and `@OneToMany` relationships across domains (e.g., `Order.customer`, `Order.restaurant`, `Delivery.order`), creating tight coupling.
-
-**Solution:** Two complementary strategies were adopted:
-
-1. **Snapshot fields (write-time denormalization):** For data that is frequently read but rarely changes (customer name, restaurant name, menu item name), the values are captured and stored on the Order entity at placement time. This eliminates the need for Feign calls on every read and ensures historical accuracy.
-
-2. **Feign enrichment (read-time resolution):** For data that changes frequently and must reflect the current state (delivery status, driver assignment), the response is enriched via a Feign call at read time. A try-catch ensures graceful degradation if the target service is unavailable.
-
-### Synchronous to Asynchronous Delivery
-
-**Problem:** In the monolith, `OrderService.placeOrder()` called `DeliveryService.createDeliveryForOrder()` synchronously, blocking the order response until a driver was assigned.
-
-**Solution:** The Order Service publishes an `OrderPlacedEvent` to RabbitMQ. The Delivery Service consumes this event asynchronously, creates the delivery, and publishes a `DeliveryStatusUpdatedEvent` back. The Order Service listens for this event to update the order status. The order response is returned immediately without waiting for delivery assignment.
-
-### Database per Service
-
-**Problem:** All entities shared a single PostgreSQL database with foreign key constraints across domains.
-
-**Solution:** Four separate databases (`customer_db`, `restaurant_db`, `order_db`, `delivery_db`) are created via an initialization script. Each service connects exclusively to its own database. Cross-domain references are stored as plain `Long` ID fields with no foreign key enforcement.
+- Eureka Dashboard: `http://localhost:8761`
+- RabbitMQ Management: `http://localhost:15672` (guest/guest)
+- API Gateway Health: `http://localhost:8080/actuator/health`
 
 ---
 
-## End-to-End Test Flow
+## Monitoring and Observability
 
-The following sequence validates the complete order lifecycle through the API Gateway:
+### Actuator Endpoints
 
-### 1. Register a Customer
+Each service exposes the following actuator endpoints:
 
-```
-POST http://localhost:8080/api/auth/register
-Content-Type: application/json
+| Endpoint                          | Description                                      |
+|-----------------------------------|--------------------------------------------------|
+| `/actuator/health`                | Application health including circuit breaker state |
+| `/actuator/circuitbreakers`       | All circuit breaker instances and their states    |
+| `/actuator/circuitbreakerevents`  | Circuit breaker event log                        |
+| `/actuator/metrics`               | Application metrics                              |
+| `/actuator/prometheus`            | Prometheus-compatible metrics export             |
 
-{
-  "username": "johndoe",
-  "email": "john@example.com",
-  "password": "password123",
-  "firstName": "John",
-  "lastName": "Doe",
-  "phone": "+1-555-1234",
-  "deliveryAddress": "456 Oak Ave",
-  "city": "Accra"
-}
-```
+### Prometheus Integration
 
-Save the `token` from the response for subsequent requests.
+All services include `micrometer-registry-prometheus` for metrics export. Prometheus can scrape each service's `/actuator/prometheus` endpoint.
 
-### 2. Create a Restaurant
+---
 
-```
-POST http://localhost:8080/api/restaurants
-Authorization: Bearer <token>
-Content-Type: application/json
+## Database Schema
 
-{
-  "name": "Pizza Place",
-  "description": "Best pizza in town",
-  "cuisineType": "Italian",
-  "address": "123 Main St",
-  "city": "Accra",
-  "phone": "+1-555-5678",
-  "estimatedDeliveryMinutes": 30
-}
-```
+The application uses four separate PostgreSQL databases, created automatically by `sql-scripts/init.sql`:
 
-### 3. Add Menu Items
+| Database         | Service            | Tables                      |
+|------------------|--------------------|-----------------------------|
+| `customer_db`   | Customer Service   | `customers`                 |
+| `restaurant_db` | Restaurant Service | `restaurants`, `menu_items` |
+| `order_db`      | Order Service      | `orders`, `order_items`     |
+| `delivery_db`   | Delivery Service   | `deliveries`                |
 
-```
-POST http://localhost:8080/api/restaurants/1/menu
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "name": "Margherita Pizza",
-  "description": "Classic tomato and mozzarella",
-  "price": 12.99,
-  "category": "Pizza"
-}
-```
-
-### 4. Browse Restaurants and Menu
-
-```
-GET http://localhost:8080/api/restaurants/search/all
-GET http://localhost:8080/api/restaurants/1/menu
-```
-
-### 5. Place an Order
-
-```
-POST http://localhost:8080/api/orders
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "restaurantId": 1,
-  "items": [
-    {
-      "menuItemId": 1,
-      "quantity": 2
-    }
-  ],
-  "specialInstructions": "Extra cheese please"
-}
-```
-
-### 6. Verify Delivery Was Created Automatically
-
-After a brief delay (asynchronous via RabbitMQ):
-
-```
-GET http://localhost:8080/api/deliveries/order/1
-Authorization: Bearer <token>
-```
-
-The delivery should show status `ASSIGNED` with a driver name and phone number.
-
-### 7. Track Order (Delivery Info Enriched)
-
-```
-GET http://localhost:8080/api/orders/1
-Authorization: Bearer <token>
-```
-
-The order response should include `deliveryStatus`, `driverName`, and `driverPhone`.
-
-### 8. Update Delivery Status
-
-```
-PATCH http://localhost:8080/api/deliveries/1/status?status=PICKED_UP
-Authorization: Bearer <token>
-
-PATCH http://localhost:8080/api/deliveries/1/status?status=DELIVERED
-Authorization: Bearer <token>
-```
-
-### 9. Verify Order Status Updated
-
-```
-GET http://localhost:8080/api/orders/1
-Authorization: Bearer <token>
-```
-
-The order status should now be `DELIVERED`.
-
-### 10. Fault Tolerance Verification
-
-Stop the Delivery Service container and verify that order placement and retrieval still work (delivery fields will be `null`):
-
-```bash
-docker compose stop delivery-service
-```
-
-```
-POST http://localhost:8080/api/orders
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "restaurantId": 1,
-  "items": [{"menuItemId": 1, "quantity": 1}]
-}
-```
-
-The order should be created successfully. The `deliveryStatus`, `driverName`, and `driverPhone` fields will be `null` in the response.
+All schemas are managed by Hibernate with `ddl-auto: create` (development mode). Each service maintains referential integrity within its own domain only. Cross-domain references are stored as ID fields (e.g., `customerId`, `orderId`, `restaurantId`).
 
 ---
 
@@ -830,15 +468,52 @@ The order should be created successfully. The `deliveryStatus`, `driverName`, an
 
 ```
 food-delivery-microservice/
-|-- compose.yml                 # Docker Compose orchestration
+|-- compose.yml
 |-- sql-scripts/
-|   |-- init.sql                # Creates per-service databases
-|-- api-gateway/                # Spring Cloud Gateway + JWT auth
-|-- discovery-service/          # Eureka service registry
-|-- customer-service/           # Customer domain microservice
-|-- restaurant-service/         # Restaurant domain microservice
-|-- order-service/              # Order domain microservice
-|-- delivery-service/           # Delivery domain microservice
-|-- food-delivery-platform-monolith/  # Original monolith (reference)
+|   +-- init.sql
+|-- discovery-service/             # Eureka Server
+|-- api-gateway/                   # Gateway + JWT Auth
+|   +-- client/                    # Feign clients + fallback factories
+|   +-- controller/                # AuthController
+|   +-- dto/                       # AuthRequest, AuthResponse, CustomerDTO, RegisterRequest
+|   +-- exception/                 # Global exception handling
+|   +-- security/                  # JWT filter, SecurityConfig
+|   +-- service/                   # AuthService (circuit-breaker protected)
+|-- customer-service/
+|   +-- controller/                # CustomerController
+|   +-- dto/                       # RegisterRequest, CustomerResponse, AuthResponse
+|   +-- entity/                    # CustomerEntity
+|   +-- exception/                 # Global exception handling
+|   +-- repository/                # CustomerRepository
+|   +-- security/                  # SecurityContextFilter
+|   +-- service/                   # CustomerService
+|-- restaurant-service/
+|   +-- client/                    # CustomerInterface + fallback factory
+|   +-- controller/                # RestaurantController
+|   +-- dto/                       # RestaurantRequest/Response, MenuItemRequest/Response, CustomerResponse
+|   +-- entity/                    # RestaurantEntity, MenuItemEntity
+|   +-- exception/                 # Global exception handling + ServiceUnavailableException
+|   +-- repository/                # RestaurantRepository, MenuItemRepository
+|   +-- security/                  # SecurityContextFilter
+|   +-- service/                   # RestaurantService
+|-- order-service/
+|   +-- client/                    # CustomerInterface, RestaurantInterface, DeliveryInterface + fallback factories
+|   +-- config/                    # FeignConfig, RabbitMQConfig, OrderQueueConfig
+|   +-- controller/                # OrderController
+|   +-- dto/                       # PlaceOrderRequest, OrderItemRequest, OrderResponse, CustomerResponse, RestaurantResponse, MenuItemResponse, DeliveryUpdateEvent
+|   +-- entity/                    # OrderEntity, OrderItemEntity
+|   +-- exception/                 # Global exception handling + ServiceUnavailableException
+|   +-- repository/                # OrderRepository, OrderItemRepository
+|   +-- security/                  # SecurityContextFilter
+|   +-- service/                   # OrderService, OrderListener
+|-- delivery-service/
+|   +-- client/                    # OrderInterface, CustomerInterface + fallback factories
+|   +-- config/                    # FeignConfig, RabbitMQConfig, DeliveryQueueConfig
+|   +-- controller/                # DeliveryController
+|   +-- dto/                       # DeliveryResponse, OrderResponse, CustomerResponse, DeliveryUpdateEvent, OrderDTO, RestaurantDTO
+|   +-- entity/                    # DeliveryEntity
+|   +-- exception/                 # Global exception handling + ServiceUnavailableException
+|   +-- repository/                # DeliveryRepository
+|   +-- security/                  # SecurityContextFilter
+|   +-- service/                   # DeliveryService, DeliveryListener
 ```
-
