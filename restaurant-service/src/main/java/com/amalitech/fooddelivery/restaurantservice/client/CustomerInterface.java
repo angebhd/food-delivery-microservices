@@ -17,5 +17,5 @@ public interface CustomerInterface {
   CustomerResponse getById(@PathVariable Long id);
 
   @PutMapping("api/customers/make-restaurant-owner")
-  ResponseEntity<CustomerResponse> makeRestaurantOwner(Authentication auth);
+  ResponseEntity<CustomerResponse> makeRestaurantOwner();
 }

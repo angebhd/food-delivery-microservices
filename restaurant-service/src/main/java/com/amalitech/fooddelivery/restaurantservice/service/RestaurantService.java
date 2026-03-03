@@ -42,8 +42,7 @@ public class RestaurantService {
         // Promote to RESTAURANT_OWNER if needed
         if (owner.getRole().equalsIgnoreCase("CUSTOMER")) {
             log.warn("Making user {} a restaurant owner", ownerUsername);
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            customerService.makeRestaurantOwner(auth);
+            customerService.makeRestaurantOwner();
         }
 
         RestaurantEntity restaurant = RestaurantEntity.builder()
