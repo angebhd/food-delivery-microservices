@@ -10,3 +10,14 @@ spring:
           enabled: true
           lower-case-service-id: true
 
+server:
+  port: 8080
+
+app:
+  jwt:
+    secret: "mysecretkeymysecretkeymysecretkeymysecretkey"
+    expiration-ms: 3600000
+
+feign:
+  circuitbreaker:
+    enabled: true

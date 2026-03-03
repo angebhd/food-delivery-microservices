@@ -35,6 +35,7 @@ spring:
               uri: http://discovery-service:8761
               predicates:
                 - Path=/eureka/**
+
 server:
   port: 8080
 
@@ -47,3 +48,45 @@ app:
   jwt:
     secret: "mysecretkeymysecretkeymysecretkeymysecretkey"
     expiration-ms: 3600000
+
+feign:
+  circuitbreaker:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,circuitbreakers,circuitbreakerevents,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        ignoreExceptions:
+          - com.amalitech.fooddelivery.apigateway.exception.DuplicateResourceException
+          - com.amalitech.fooddelivery.apigateway.exception.ResourceNotFoundException
+          - com.amalitech.fooddelivery.apigateway.exception.UnauthorizedException
+    instances:
+      customerService:
+        baseConfig: default
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 3s
+    instances:
+      customerService:
+        baseConfig: default
