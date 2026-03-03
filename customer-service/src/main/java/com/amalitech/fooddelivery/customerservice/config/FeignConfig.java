@@ -33,7 +33,6 @@ public class FeignConfig {
         if (authHeader != null) {
           template.header(HttpHeaders.AUTHORIZATION, authHeader);
         }
-
       }
     };
   }
