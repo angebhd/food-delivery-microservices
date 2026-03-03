@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -74,6 +75,7 @@ public class OrderService {
 
         // Validate and price each menu item via Restaurant Service
         BigDecimal total = BigDecimal.ZERO;
+        List<OrderItemEntity> orderItems = new ArrayList<>();
         for (OrderItemRequest itemReq : request.getItems()) {
             MenuItemResponse menuItem = restaurantService.getMenuItemById(itemReq.getMenuItemId());
 
@@ -97,18 +99,20 @@ public class OrderService {
                     .specialInstructions(itemReq.getSpecialInstructions())
                     .build();
 
-            order.getItems().add(orderItem);
+//            order.getItems().add(orderItem);
+            orderItems.add(orderItem);
             total = total.add(subtotal);
         }
 
         order.setTotalAmount(total);
+        order.setItems(orderItems);
         OrderEntity savedOrder = orderRepository.save(order);
 
         // Publish OrderPlacedEvent so Delivery Service creates a delivery asynchronously.
         // If Delivery Service is DOWN, the message stays in RabbitMQ and is processed
         // once the service recovers — the order itself is already persisted successfully.
         try {
-            rabbitTemplate.convertAndSend(RabbitMQConfig.APP_EXCHANGE, OrderRoutingKey.ORDER_PLACED.getRoutingKey(), savedOrder);
+            rabbitTemplate.convertAndSend(RabbitMQConfig.APP_EXCHANGE, OrderRoutingKey.ORDER_PLACED.getRoutingKey(), OrderResponse.fromEntity(savedOrder));
         } catch (Exception e) {
             log.warn("Failed to publish OrderPlacedEvent for order {}. " +
                     "Delivery will be created when messaging recovers. Cause: {}", savedOrder.getId(), e.getMessage());
