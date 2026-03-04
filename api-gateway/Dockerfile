@@ -1,6 +1,6 @@
 # Stage 1: Build Environment (named "builder")
 FROM eclipse-temurin:21.0.8_9-jdk-jammy AS builder
-WORKDIR /opt/app
+WORKDIR /app
 
 # Copy Maven wrapper and pom.xml to download dependencies first
 # This leverages Docker's layer caching for faster subsequent builds
@@ -14,14 +14,14 @@ RUN ./mvnw clean install -DskipTests
 
 # Stage 2: Runtime Environment (named "final")
 FROM eclipse-temurin:21.0.8_9-jre-jammy AS final
-WORKDIR /opt/app
+WORKDIR /app
 
 # Expose the application port
 EXPOSE 8080
 
 # Copy only the compiled JAR from the builder stage
 # This keeps the final image lean as it won't contain Maven or the full JDK
-COPY --from=builder /opt/app/target/*.jar /opt/app/*.jar
+COPY --from=builder /app/target/*.jar /app/*.jar
 
 # Define the command to run the application
-ENTRYPOINT ["java", "-jar", "/opt/app/*.jar"]
+ENTRYPOINT ["java", "-jar", "/app/*.jar"]
