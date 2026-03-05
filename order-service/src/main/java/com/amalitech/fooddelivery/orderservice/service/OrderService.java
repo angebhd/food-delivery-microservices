@@ -57,6 +57,7 @@ public class OrderService {
         if (!restaurant.isActive()) {
             throw new IllegalStateException("Restaurant is currently not accepting orders");
         }
+        log.warn("Customer with name {} {} fetched", customer.getFirstName(), customer.getLastName());
 
         // Build order
         OrderEntity order = OrderEntity.builder()
@@ -99,7 +100,6 @@ public class OrderService {
                     .specialInstructions(itemReq.getSpecialInstructions())
                     .build();
 
-//            order.getItems().add(orderItem);
             orderItems.add(orderItem);
             total = total.add(subtotal);
         }

@@ -83,7 +83,9 @@ public class DeliveryService {
     public DeliveryResponse getByOrderId(Long orderId) {
         DeliveryEntity delivery = deliveryRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery", "orderId", orderId));
-        return enrichWithOrderInfo(DeliveryResponse.fromEntity(delivery));
+//        return enrichWithOrderInfo(DeliveryResponse.fromEntity(delivery));
+        return DeliveryResponse.fromEntity(delivery);
+
     }
 
     @Transactional(readOnly = true)

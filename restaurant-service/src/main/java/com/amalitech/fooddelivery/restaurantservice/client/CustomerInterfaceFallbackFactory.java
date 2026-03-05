@@ -30,7 +30,7 @@ public class CustomerInterfaceFallbackFactory implements FallbackFactory<Custome
                 return null;
             }
             @Override
-            public ResponseEntity<CustomerResponse> makeRestaurantOwner() {
+            public CustomerResponse makeRestaurantOwner() {
                 log.error("Circuit breaker activated: Customer Service is unavailable. "
                         + "Cannot promote user to restaurant owner. Cause: {}", cause.getMessage());
                 throw new ServiceUnavailableException("Customer Service", cause);

@@ -2,8 +2,6 @@ package com.amalitech.fooddelivery.restaurantservice.client;
 
 import com.amalitech.fooddelivery.restaurantservice.dto.CustomerResponse;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -17,5 +15,5 @@ public interface CustomerInterface {
   CustomerResponse getById(@PathVariable Long id);
 
   @PutMapping("api/customers/make-restaurant-owner")
-  ResponseEntity<CustomerResponse> makeRestaurantOwner();
+  CustomerResponse makeRestaurantOwner();
 }

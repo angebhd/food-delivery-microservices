@@ -25,6 +25,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)  // Disable if not needed
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/api/customers/create", "/api/customers/username/{username}").permitAll()
+                    .requestMatchers("/api/customers/actuator/**").permitAll()
                     .anyRequest().authenticated()  // Or configure as needed; gateway handles auth
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

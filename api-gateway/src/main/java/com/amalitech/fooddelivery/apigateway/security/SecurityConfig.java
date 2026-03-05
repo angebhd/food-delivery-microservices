@@ -37,7 +37,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
-                .requestMatchers("/actuator/**").permitAll()
+                .requestMatchers("/api/actuator/**").permitAll()
                 .requestMatchers("/api/restaurants/search/**").permitAll()
                 .requestMatchers("/api/restaurants/*/menu").permitAll()
                 .anyRequest().permitAll()

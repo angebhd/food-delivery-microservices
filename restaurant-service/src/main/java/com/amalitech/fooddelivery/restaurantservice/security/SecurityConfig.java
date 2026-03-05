@@ -10,7 +10,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
-@EnableMethodSecurity  // Enables @PreAuthorize, etc.
+@EnableMethodSecurity
 public class SecurityConfig {
 
   private final SecurityContextFilter securityContextFilter;  // Inject your filter
@@ -20,10 +20,12 @@ public class SecurityConfig {
   }
 
   @Bean
-  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) {
     return http
             .csrf(AbstractHttpConfigurer::disable)  // Disable if not needed
-            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated()
+            .authorizeHttpRequests(auth -> auth
+                    .requestMatchers("/api/restaurants/actuator/**").permitAll()
+                    .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .addFilterBefore(securityContextFilter, UsernamePasswordAuthenticationFilter.class)

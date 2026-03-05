@@ -20,10 +20,12 @@ public class SecurityConfig {
   }
 
   @Bean
-  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+  public SecurityFilterChain securityFilterChain(HttpSecurity http){
     return http
             .csrf(AbstractHttpConfigurer::disable)  // Disable if not needed
-            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated()
+            .authorizeHttpRequests(auth -> auth
+                    .requestMatchers("/api/customers/actuator/**").permitAll()
+                    .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .addFilterBefore(securityContextFilter, UsernamePasswordAuthenticationFilter.class)

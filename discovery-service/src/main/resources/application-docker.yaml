@@ -12,4 +12,9 @@ eureka:
     fetch-registry: false
     service-url:
       defaultZone: http://discovery-service:8761/eureka/
-
+management:
+  endpoints:
+    web:
+      base-path: /api/discovery/actuator
+      exposure:
+        include: health,metrics,prometheus
