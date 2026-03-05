@@ -6,6 +6,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.HttpServerErrorException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -46,6 +47,23 @@ public class GlobalExceptionHandler {
         body.put("status", HttpStatus.BAD_REQUEST.value());
         body.put("errors", errors);
         return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(HttpServerErrorException.class)
+    public ResponseEntity<Map<String, Object>> handleServiceUnavailable(HttpServerErrorException ex) {
+
+        if (ex.getStatusCode().value() == 503 &&
+                ex.getMessage() != null &&
+                ex.getMessage().contains("Unable to find instance")) {
+
+            return buildResponse(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Requested service is currently unavailable. Please try again later."
+            );
+        }
+
+        // Let other 5xx errors propagate if they are different
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
     }
 
     private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message) {
