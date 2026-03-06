@@ -35,6 +35,9 @@ spring:
               uri: http://discovery-service:8761
               predicates:
                 - Path=/eureka/**
+    openfeign:
+      circuitbreaker:
+        enabled: true
 
 server:
   port: 8080
@@ -49,9 +52,6 @@ app:
     secret: "mysecretkeymysecretkeymysecretkeymysecretkey"
     expiration-ms: 3600000
 
-feign:
-  circuitbreaker:
-    enabled: true
 
 management:
   endpoints:
@@ -78,6 +78,8 @@ resilience4j:
         permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true
         ignoreExceptions:
+          - feign.FeignException.Forbidden
+          - feign.FeignException.NotFound
           - com.amalitech.fooddelivery.apigateway.exception.DuplicateResourceException
           - com.amalitech.fooddelivery.apigateway.exception.ResourceNotFoundException
           - com.amalitech.fooddelivery.apigateway.exception.UnauthorizedException
@@ -91,3 +93,9 @@ resilience4j:
     instances:
       customerService:
         baseConfig: default
+  ratelimiter:
+    configs:
+      default:
+        limitForPeriod: 10
+        limitRefreshPeriod: 1s
+        timeoutDuration: 0
