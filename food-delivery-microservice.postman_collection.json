@@ -1,0 +1,544 @@
+{
+	"info": {
+		"_postman_id": "f159fa68-d536-47c1-8c3c-5a42f89d9e3d",
+		"name": "Food Delivery Microservice",
+		"description": "Food delivery microservice documentation",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "35279155"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"john\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"phone\": \"+1-555-0100\",\n  \"deliveryAddress\": \"123 Main St\",\n  \"city\": \"Lagos\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"register"
+							]
+						},
+						"description": "Register a new customer"
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{ \n    \"username\": \"john\", \n    \"password\": \"password123\" \n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login"
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoiints"
+		},
+		{
+			"name": "Customers",
+			"item": [
+				{
+					"name": "Get auth customer",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/customers/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"customers",
+								"me"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Customer",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"john\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"Jonathan\",\n  \"lastName\": \"Doe\",\n  \"phone\": \"+250792079711\",\n  \"deliveryAddress\": \"123 Main St\",\n  \"city\": \"Lagos\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/cutomer/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"cutomer",
+								"me"
+							]
+						},
+						"description": "Register a new customer"
+					},
+					"response": []
+				}
+			],
+			"description": "**Customer Service**",
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{token}}",
+						"type": "string"
+					}
+				]
+			},
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				}
+			]
+		},
+		{
+			"name": "Deliveries",
+			"item": [
+				{
+					"name": "Check Delivery Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/deliveries/order/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"deliveries",
+								"order",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Delivery Status",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/deliveries/1/status?status=PICKED_UP",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"deliveries",
+								"1",
+								"status"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "PICKED_UP"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{token}}",
+						"type": "string"
+					}
+				]
+			},
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				}
+			]
+		},
+		{
+			"name": "Orders",
+			"item": [
+				{
+					"name": "Place Order",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"restaurantId\": 1,\n  \"items\": [\n    { \"menuItemId\": 1, \"quantity\": 2 },\n    { \"menuItemId\": 2, \"quantity\": 1 }\n  ],\n  \"specialInstructions\": \"Extra pepper please\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Order by ID",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"restaurantId\": 1,\n  \"items\": [\n    { \"menuItemId\": 1, \"quantity\": 2 },\n    { \"menuItemId\": 2, \"quantity\": 1 }\n  ],\n  \"specialInstructions\": \"Extra pepper please\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User's Orders",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"restaurantId\": 1,\n  \"items\": [\n    { \"menuItemId\": 1, \"quantity\": 2 },\n    { \"menuItemId\": 2, \"quantity\": 1 }\n  ],\n  \"specialInstructions\": \"Extra pepper please\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders/my-orders",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"my-orders"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{token}}",
+						"type": "string"
+					}
+				]
+			},
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				}
+			]
+		},
+		{
+			"name": "Restaurant",
+			"item": [
+				{
+					"name": "Create Restaurant",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Mama's Kitchen\",\n  \"description\": \"Traditional Nigerian cuisine\",\n  \"cuisineType\": \"Nigerian\",\n  \"address\": \"45 Marina Road\",\n  \"city\": \"Lagos\",\n  \"phone\": \"+234-1-555-0200\",\n  \"estimatedDeliveryMinutes\": 35\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/restaurants",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"restaurants"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add Menu Item",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{ \n    \"name\": \"Jollof Rice\", \n    \"description\": \"Smoky party-style jollof\", \n    \"price\": 2500.00, \"category\": \"Main\" \n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/restaurants/1/menu",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"restaurants",
+								"1",
+								"menu"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add Menu Item 2",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{ \n    \"name\": \"Suya\", \n    \"description\": \"Spicy grilled beef skewers\", \n    \"price\": 1500.00, \"category\": \"Appetizer\" \n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/restaurants/1/menu",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"restaurants",
+								"1",
+								"menu"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Restaurant's Menu",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/restaurants/1/menu",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"restaurants",
+								"1",
+								"menu"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{token}}",
+						"type": "string"
+					}
+				]
+			},
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": ""
+		},
+		{
+			"key": "token",
+			"value": ""
+		}
+	]
+}

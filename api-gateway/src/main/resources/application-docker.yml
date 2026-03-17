@@ -90,7 +90,7 @@ resilience4j:
   timelimiter:
     configs:
       default:
-        timeoutDuration: 3s
+        timeoutDuration: 30s
     instances:
       customerService:
         baseConfig: default
