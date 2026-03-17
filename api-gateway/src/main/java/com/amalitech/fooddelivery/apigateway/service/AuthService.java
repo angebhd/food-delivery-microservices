@@ -5,6 +5,7 @@ import com.amalitech.fooddelivery.apigateway.dto.AuthRequest;
 import com.amalitech.fooddelivery.apigateway.dto.AuthResponse;
 import com.amalitech.fooddelivery.apigateway.dto.CustomerDTO;
 import com.amalitech.fooddelivery.apigateway.dto.RegisterRequest;
+import com.amalitech.fooddelivery.apigateway.exception.ServiceUnavailableException;
 import com.amalitech.fooddelivery.apigateway.exception.UnauthorizedException;
 import com.amalitech.fooddelivery.apigateway.security.JwtUtil;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -46,12 +47,12 @@ public class AuthService {
     private AuthResponse registerFallback(RegisterRequest request, Throwable t) {
         log.error("Circuit breaker triggered for registration. Customer Service is unavailable. User: {}, Cause: {}",
                 request.getUsername(), t.getMessage());
-        throw new IllegalStateException("Registration is temporarily unavailable. Please try again later.");
+        throw new ServiceUnavailableException("Registration is temporarily unavailable. Please try again later.");
     }
 
     private AuthResponse loginFallback(AuthRequest request, Throwable t) {
         log.error("Circuit breaker triggered for login. Customer Service is unavailable. User: {}, Cause: {}",
                 request.getUsername(), t.getMessage());
-        throw new IllegalStateException("Login is temporarily unavailable. Please try again later.");
+        throw new ServiceUnavailableException("Login is temporarily unavailable. Please try again later.");
     }
 }

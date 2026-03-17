@@ -26,6 +26,8 @@ services:
     build: ./discovery-service
     environment:
       - SPRING_PROFILES_ACTIVE=docker
+    ports:
+      - "8761:8761"
 
   api-gateway:
     container_name: API-GATEWAY

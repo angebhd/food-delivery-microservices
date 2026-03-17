@@ -1,6 +1,7 @@
 package com.amalitech.fooddelivery.apigateway.client;
 import com.amalitech.fooddelivery.apigateway.dto.CustomerDTO;
 import com.amalitech.fooddelivery.apigateway.dto.RegisterRequest;
+import com.amalitech.fooddelivery.apigateway.exception.ServiceUnavailableException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.stereotype.Component;
@@ -19,13 +20,13 @@ public class CustomerInterfaceFallbackFactory implements FallbackFactory<Custome
             public CustomerDTO register(RegisterRequest request) {
                 log.error("Circuit breaker activated: Customer Service is unavailable. "
                         + "Cannot register user={}. Cause: {}", request.getUsername(), cause.getMessage());
-                throw new IllegalStateException("Registration is temporarily unavailable. Please try again later.");
+                throw new ServiceUnavailableException("Registration is temporarily unavailable. Please try again later.");
             }
             @Override
             public CustomerDTO getByUsername(String username) {
                 log.error("Circuit breaker activated: Customer Service is unavailable. "
                         + "Cannot authenticate user={}. Cause: {}", username, cause.getMessage());
-                throw new IllegalStateException("Authentication is temporarily unavailable. Please try again later.");
+                throw new ServiceUnavailableException("Authentication is temporarily unavailable. Please try again later.");
             }
         };
     }
