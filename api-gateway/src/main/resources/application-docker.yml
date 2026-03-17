@@ -8,10 +8,6 @@ spring:
           enabled: true
       server:
         webmvc:
-          default-filters:
-            - name: RateLimiter
-              args:
-                name: gatewayRateLimiter
           routes:
             - id: customer-service
               uri: lb://customer-service
@@ -29,10 +25,6 @@ spring:
               uri: lb://delivery-service
               predicates:
                 - Path=/api/deliveries/**
-              filters:
-                - name: rateLimiter
-                  args:
-                    name: gatewayRateLimiter
             - id: discovery-service
               uri: http://discovery-service:8761
               predicates:
@@ -65,10 +57,11 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,circuitbreakers,circuitbreakerevents,metrics,prometheus
+        include: health,circuitbreakers,circuitbreakerevents,metrics,prometheus, ratelimiters
       base-path: /api/actuator
   endpoint:
     health:
+      ratelimiters: true
       show-details: always
   health:
     circuitbreakers:
@@ -104,9 +97,8 @@ resilience4j:
   ratelimiter:
     configs:
       default:
-        limitForPeriod: 10
-        limitRefreshPeriod: 1s
+        limitForPeriod: 2
+        limitRefreshPeriod: 10s
         timeoutDuration: 0
-    instances:
-      gatewayRateLimiter:
-        baseConfig: default
+        register-health-indicator: true
+
