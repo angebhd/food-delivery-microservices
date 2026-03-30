@@ -1,5 +1,6 @@
 package com.amalitech.fooddelivery.orderservice.client;
 
+import com.amalitech.fooddelivery.orderservice.dto.DeliveryInfoResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.stereotype.Component;

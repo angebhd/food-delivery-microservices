@@ -18,7 +18,6 @@ public class CustomerInterfaceFallbackFactory implements FallbackFactory<Custome
     @Override
     public CustomerInterface create(Throwable cause) {
         return new CustomerInterface() {
-
             @Override
             public CustomerResponse findEntityByUsername(String username) {
                 log.error("Circuit breaker activated: Customer Service is unavailable. " +

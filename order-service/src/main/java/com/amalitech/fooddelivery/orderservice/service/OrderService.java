@@ -1,6 +1,6 @@
 package com.amalitech.fooddelivery.orderservice.service;
 
-import com.amalitech.fooddelivery.orderservice.client.DeliveryInfoResponse;
+import com.amalitech.fooddelivery.orderservice.dto.DeliveryInfoResponse;
 import com.amalitech.fooddelivery.orderservice.client.CustomerInterface;
 import com.amalitech.fooddelivery.orderservice.client.DeliveryInterface;
 import com.amalitech.fooddelivery.orderservice.client.RestaurantInterface;

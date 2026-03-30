@@ -1,4 +1,4 @@
-package com.amalitech.fooddelivery.orderservice.client;
+package com.amalitech.fooddelivery.orderservice.dto;
 
 import lombok.Data;
 
