@@ -2,8 +2,6 @@
 /target/
 
 # Ignore Maven wrapper files and directories
-.mvn/
-mvnw
 mvnw.cmd
 
 # Ignore IDE and OS files
@@ -18,4 +16,5 @@ mvnw.cmd
 # Ignore logs and temp files
 *.log
 *.tmp
+
 
