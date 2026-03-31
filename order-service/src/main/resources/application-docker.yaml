@@ -1,6 +1,10 @@
 spring:
   application:
     name: order-service
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
   datasource:
     url: jdbc:postgresql://postgres:5432/order_db
     password: password
@@ -22,9 +26,7 @@ eureka:
     service-url:
       defaultZone: http://discovery-service:8761/eureka/
 
-feign:
-  circuitbreaker:
-    enabled: true
+
 
 management:
   endpoints:

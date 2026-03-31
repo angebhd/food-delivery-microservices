@@ -99,6 +99,6 @@ resilience4j:
       default:
         limitForPeriod: 2
         limitRefreshPeriod: 10s
-        timeoutDuration: 0
+        timeoutDuration: 10s
         register-health-indicator: true
 
