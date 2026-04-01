@@ -27,11 +27,20 @@
           │                        │                        │
           └────────────────────────┴────────────────────────┘
                                    │
-                          ┌────────┴────────┐
-                          │    RabbitMQ     │
-                          │  Port: 5672     │
-                          │  (app.exchange) │
-                          └─────────────────┘
+                      ┌────────────┴────────────┐
+                      │                         │
+            ┌─────────┴───────┐       ┌─────────┴───────┐
+            │    RabbitMQ     │       │   PostgreSQL    │
+            │  Port: 5672     │       │  Port: 5433     │
+            │  (app.exchange) │       │  (Shared DB)    │
+            └─────────────────┘       └─────────────────┘
+
+   Inter-Service Relationships (Synchronous OpenFeign):
+   - Gateway    ➔ Customer
+   - Order      ➔ Customer, Restaurant, Delivery
+   - Delivery   ➔ Order, Customer
+   - Restaurant ➔ Order, Customer
+   - Customer   ➔ Order
 ```
 
 ## Request Flow
@@ -62,8 +71,10 @@ Order Service      ──Feign──▶  Customer Service   (validate customer)
 Order Service      ──Feign──▶  Restaurant Service (validate items + pricing)
 Order Service      ──Feign──▶  Delivery Service   (enrich order with delivery info)
 Restaurant Service ──Feign──▶  Customer Service   (validate owner role)
+Restaurant Service ──Feign──▶  Order Service
 Delivery Service   ──Feign──▶  Order Service      (enrich delivery with order info)
 Delivery Service   ──Feign──▶  Customer Service   (enrich delivery with customer info)
+Customer Service   ──Feign──▶  Order Service
 ```
 
 ## Asynchronous Communication (RabbitMQ)
