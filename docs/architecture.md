@@ -19,14 +19,14 @@
           │                   THE MICROSERVICES                         │
           │                                                             │
           │   ┌──────────────┐                  ┌──────────────┐        │
-          │   │  Restaurant  ├──────(HTTP)─────▶│   Customer   │        │
+          │   │  Restaurant  ├◄─────(HTTP)─────▶│   Customer   │        │
           │   │  Service     │                  │   Service    │        │
           │   └──────▲───────┘                  └──────▲───────┘        │
           │          │                                 │                │
           │        (HTTP)                            (HTTP)             │
           │          │                                 │                │
           │   ┌──────┴───────┐                  ┌──────┴───────┐        │
-          │   │   Order      │                  |   Delivery   │        │
+          │   │   Order      ├◄─────(HTTP)──────│   Delivery   │        │
           │   │   Service    │                  │   Service    │        │
           │   └───┬───────▲──┘                  └───┬───────▲──┘        │
           │       │       │                         │       │           │
