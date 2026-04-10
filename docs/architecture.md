@@ -2,50 +2,55 @@
 
 ## System Overview
 
+```text
+               [ External Clients (Browser/Mobile) ]
+                               │
+                               ▼ 1. Request enters
+                     ┌───────────────────┐               ┌─────────────────────┐
+                     │    API Gateway    │◄── 2. Ask ────┤  Discovery Service  │
+                     │    (Port: 8080)   │    Where?     │    (Eureka)         │
+                     └────────┬──────────┘               └─────────┬───────────┘
+                              │                                    │ All apps
+                              │ 3. Forward to                      │ register
+                              │    correct service                 │ here
+                              ▼                                    │
+          ┌────────────────────────────────────────────────────────┴────┐
+          │                                                             │
+          │                   THE MICROSERVICES                         │
+          │                                                             │
+          │   ┌──────────────┐                  ┌──────────────┐        │
+          │   │  Restaurant  ├──────(HTTP)─────▶│   Customer   │        │
+          │   │  Service     │                  │   Service    │        │
+          │   └──────▲───────┘                  └──────▲───────┘        │
+          │          │                                 │                │
+          │        (HTTP)                            (HTTP)             │
+          │          │                                 │                │
+          │   ┌──────┴───────┐                  ┌──────┴───────┐        │
+          │   │   Order      │                  |   Delivery   │        │
+          │   │   Service    │                  │   Service    │        │
+          │   └───┬───────▲──┘                  └───┬───────▲──┘        │
+          │       │       │                         │       │           │
+          └───────┼───────┼─────────────────────────┼───────┼───────────┘
+                  │       │                         │       │
+      4. Publish  │       │ 6. Listen & Update      │       │ 5. Listen & 
+      Event       ▼       │                         ▼       │    Process
+           ┌──────────────┴─────────────────────────┴───────────────┐
+           │                     RabbitMQ                           │
+           │                 (Event Notice Board)                   │
+           └────────────────────────────────────────────────────────┘
 ```
-                        ┌─────────────────────┐
-                        │   Discovery Service  │
-                        │    (Eureka Server)   │
-                        │      Port: 8761      │
-                        └──────────┬──────────┘
-                                   │  All services register here
-          ┌────────────────────────┼────────────────────────┐
-          │                        │                        │
-   ┌──────┴──────┐          ┌──────┴──────┐         ┌──────┴──────┐
-   │ API Gateway │          │  Customer   │         │  Restaurant │
-   │  Port: 8080 │          │  Service   │         │   Service   │
-   │  JWT + Route│          │  Port: 8081 │         │  Port: 8084 │
-   └──────┬──────┘          └──────┬──────┘         └──────┬──────┘
-          │                        │                        │
-          │  External traffic      │                        │
-          │  (all /api/* routes)   │                        │
-          │                 ┌──────┴──────┐         ┌──────┴──────┐
-          │                 │   Order     │         │  Delivery   │
-          │                 │   Service   │         │   Service   │
-          │                 │  Port: 8083 │         │  Port: 8082 │
-          │                 └──────┬──────┘         └──────┬──────┘
-          │                        │                        │
-          └────────────────────────┴────────────────────────┘
-                                   │
-                      ┌────────────┴────────────┐
-                      │                         │
-            ┌─────────┴───────┐       ┌─────────┴───────┐
-            │    RabbitMQ     │       │   PostgreSQL    │
-            │  Port: 5672     │       │  Port: 5433     │
-            │  (app.exchange) │       │  (Shared DB)    │
-            └─────────────────┘       └─────────────────┘
+*(Note: Every microservice also has its own connection to PostgreSQL to store its specific data, but that is omitted here so the communication flow is clearer).*
 
-   Inter-Service Relationships (Synchronous OpenFeign):
-   - Gateway    ➔ Customer
-   - Order      ➔ Customer, Restaurant, Delivery
-   - Delivery   ➔ Order, Customer
-   - Restaurant ➔ Order, Customer
-   - Customer   ➔ Order
-```
+Inter-Service Relationships (Synchronous OpenFeign):
+- Gateway    ➔ Customer
+- Order      ➔ Customer, Restaurant, Delivery
+- Delivery   ➔ Order, Customer
+- Restaurant ➔ Order, Customer
+- Customer   ➔ Order
 
 ## Request Flow
 
-```
+```text
 Client
   │
   ▼
@@ -58,14 +63,15 @@ API Gateway (:8080)
   ├── /api/customers/**        →  lb://customer-service
   ├── /api/orders/**           →  lb://order-service
   ├── /api/restaurants/**      →  lb://restaurant-service
-  └── /api/deliveries/**       →  lb://delivery-service
+  ├── /api/deliveries/**       →  lb://delivery-service
+  └── /eureka/**               →  http://discovery-service:8761 (Eureka dashboard/static)
 ```
 
 ## Synchronous Communication (OpenFeign)
 
 All Feign clients propagate `X-Auth-User`, `X-Auth-Role`, and `Authorization` headers via a shared `FeignConfig` interceptor.
 
-```
+```text
 API Gateway        ──Feign──▶  Customer Service   (register / login lookup)
 Order Service      ──Feign──▶  Customer Service   (validate customer)
 Order Service      ──Feign──▶  Restaurant Service (validate items + pricing)
@@ -81,11 +87,14 @@ Customer Service   ──Feign──▶  Order Service
 
 Exchange: `app.exchange` (Topic Exchange)
 
-```
+```text
 Order Service
   │
   ├── routing key: order.placed   ──▶  delivery.queue  ──▶  Delivery Service
   │                                     (creates delivery assignment)
+  │
+  ├── routing key: order.updated  ──▶  delivery.queue  ──▶  Delivery Service
+  │                                     (adjusts delivery details)
   │
   └── routing key: order.deleted  ──▶  delivery.queue  ──▶  Delivery Service
                                         (marks delivery FAILED)
@@ -126,10 +135,10 @@ All Feign calls are wrapped with Resilience4j circuit breakers.
 |-----------|-------|
 | slidingWindowSize | 10 |
 | minimumNumberOfCalls | 5 |
-| failureRateThreshold | 50% |
+| failureRateThreshold | 50% (60% for deliveryService) |
 | waitDurationInOpenState | 10s |
 | permittedNumberOfCallsInHalfOpenState | 3 |
-| timelimiter.timeoutDuration | 3s (5s for deliveryService) |
+| timelimiter.timeoutDuration | 3s (30s for Gateway, 5s for deliveryService) |
 
 ### Fallback Behavior
 
@@ -143,7 +152,7 @@ All Feign calls are wrapped with Resilience4j circuit breakers.
 
 ## Security Model
 
-```
+```text
 1. POST /api/auth/register  →  API Gateway hashes password (BCrypt), calls Customer Service
 2. POST /api/auth/login     →  API Gateway verifies BCrypt hash, issues JWT (HMAC-SHA, 1h TTL)
 3. Subsequent requests      →  Bearer token validated by JwtAuthenticationFilter
@@ -159,11 +168,11 @@ JWT config:
 
 Configured on the API Gateway via Resilience4j RateLimiter:
 - 2 requests per 10 seconds per IP
-- Timeout: 0ms (immediate rejection when limit exceeded)
+- Timeout: 10s (threads wait up to 10s for token before rejecting)
 
 ## Project Structure
 
-```
+```text
 food-delivery-microservice/
 ├── compose.yml
 ├── sql-scripts/init.sql
