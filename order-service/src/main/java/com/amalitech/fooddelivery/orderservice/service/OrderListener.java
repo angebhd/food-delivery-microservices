@@ -28,10 +28,8 @@ public class OrderListener {
 
     orderRepository.findById(event.getOrderId()).ifPresentOrElse(order -> {
       switch (event.getStatus().toUpperCase()) {
-        case "CONFIRMED" -> order.setStatus(OrderEntity.OrderStatus.CONFIRMED);
-        case "ASSIGNED" -> order.setStatus(OrderEntity.OrderStatus.CONFIRMED);
-        case "PICKED_UP" -> order.setStatus(OrderEntity.OrderStatus.OUT_FOR_DELIVERY);
-        case "IN_TRANSIT" -> order.setStatus(OrderEntity.OrderStatus.OUT_FOR_DELIVERY);
+        case "CONFIRMED", "ASSIGNED" -> order.setStatus(OrderEntity.OrderStatus.CONFIRMED);
+        case "PICKED_UP", "IN_TRANSIT" -> order.setStatus(OrderEntity.OrderStatus.OUT_FOR_DELIVERY);
         case "DELIVERED" -> order.setStatus(OrderEntity.OrderStatus.DELIVERED);
         case "FAILED" -> order.setStatus(OrderEntity.OrderStatus.CANCELLED);
         default -> log.warn("Unknown delivery status: {}", event.getStatus());
